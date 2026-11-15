@@ -126,6 +126,225 @@ float engine(vec2 p, float t) {
   float field = 0.07 * fbm(p * 2.5 + t * 0.015) + 0.14 * exp(-r * 4.5);
   return clamp(field + rays + engraving + ring * 0.85 + dots * 0.5, 0.0, 1.0);
 }`,
+  temple: `
+float tBox(vec2 p, vec2 c, vec2 b) {
+  vec2 d = abs(p - c) - b;
+  return length(max(d, 0.0)) + min(max(d.x, d.y), 0.0);
+}
+
+// One cell of a Greek key: c runs 0..1 along the band and 0..1 across it; distance to the stroke.
+float tKey(vec2 c) {
+  float d = segDist(c, vec2(0.0, 0.0), vec2(1.0, 0.0));
+  d = min(d, segDist(c, vec2(0.0, 0.0), vec2(0.0, 1.0)));
+  d = min(d, segDist(c, vec2(0.0, 1.0), vec2(0.75, 1.0)));
+  d = min(d, segDist(c, vec2(0.75, 1.0), vec2(0.75, 0.25)));
+  d = min(d, segDist(c, vec2(0.75, 0.25), vec2(0.25, 0.25)));
+  d = min(d, segDist(c, vec2(0.25, 0.25), vec2(0.25, 0.75)));
+  return min(d, segDist(c, vec2(0.25, 0.75), vec2(0.5, 0.75)));
+}
+
+// Backlit marble, engraved: dark stone in fine diagonal hatching, flutes, and a bright rim where the
+// light wraps the edge. x runs -1..1 across the drum.
+float tFluted(float x, vec2 p) {
+  float f = fract((x * 0.5 + 0.5) * 5.0);
+  float flute = 1.0 - smoothstep(0.0, 0.16, min(f, 1.0 - f));
+  float hatch = smoothstep(0.7, 1.0, 0.5 + 0.5 * sin((p.x + p.y) * 640.0));
+  return 0.07 + 0.16 * flute + 0.1 * hatch + 0.62 * smoothstep(0.66, 0.97, abs(x));
+}
+
+// A column drum adrift: centre c, half size b, tilted by ang. Returns (distance, value).
+vec2 tDrum(vec2 p, vec2 c, vec2 b, float ang) {
+  vec2 q = p - c;
+  float s = sin(ang);
+  float k = cos(ang);
+  q = vec2(k * q.x + s * q.y, -s * q.x + k * q.y);
+  vec2 dd = abs(q) - b;
+  float sd = length(max(dd, 0.0)) + min(max(dd.x, dd.y), 0.0);
+  float val = tFluted(q.x / b.x, q) + 0.5 * exp(-abs(abs(q.y) - b.y) * 600.0);
+  return vec2(sd, val);
+}
+
+// A white feather adrift: shaft, a vane in fine engraved barbs, a curved tip. Returns (coverage, value).
+vec2 tFeather(vec2 p, vec2 c, float ang, float L, float px) {
+  vec2 q = p - c;
+  float s = sin(ang);
+  float k = cos(ang);
+  q = vec2(k * q.x + s * q.y, -s * q.x + k * q.y);
+  float y = q.y / L;
+  float x = q.x + 0.1 * L * (4.0 * y * y - 1.0);
+  float w = 0.17 * L * sqrt(max(1.0 - 4.0 * y * y, 0.0)) * (0.75 + 0.35 * (y + 0.5));
+  float vane = (1.0 - smoothstep(-px, px, abs(x) - w)) * step(-0.42, y);
+  float shaft = (1.0 - smoothstep(0.0012, 0.0012 + px, abs(x))) * step(-0.62, y) * step(y, 0.48);
+  float barbs = smoothstep(0.35, 0.8, 0.5 + 0.5 * sin((abs(x) * 0.7 - q.y) * 900.0));
+  float edge = exp(-abs(abs(x) - w) * 900.0) * vane;
+  float cov = max(vane, shaft);
+  return vec2(cov, min(0.42 + 0.3 * barbs * vane + 0.3 * edge + 0.35 * shaft, 0.74));
+}
+
+// The top of a bank of cumulus: the highest of a row of round puffs.
+float tPuffs(float x, float base, float w, float seed) {
+  float top = base - 1.0;
+  float cell = floor(x / w);
+  for (int i = -2; i <= 2; i++) {
+    float ci = cell + float(i);
+    float cx = (ci + 0.5 + 0.35 * (hash(vec2(ci, seed)) - 0.5)) * w;
+    float rr = w * (0.6 + 0.9 * hash(vec2(ci, seed + 1.7)));
+    float dx = x - cx;
+    top = max(top, base + 0.25 * rr * hash(vec2(ci, seed + 4.1)) + 0.62 * sqrt(max(rr * rr - dx * dx, 0.0)));
+  }
+  return top;
+}
+
+// Inside a cloud: a silver lining at its top edge where the sun is behind, engraved lines below it.
+float tCloud(vec2 p, float top, float lit, float t) {
+  float dIn = max(top - p.y, 0.0);
+  float body = (0.45 + 0.55 * fbm(vec2(p.x * 5.0 + t * 0.01, p.y * 9.0))) * exp(-dIn * 7.0) * lit;
+  float lines = smoothstep(1.0 - body, 1.12 - body, 0.5 + 0.5 * sin(p.y * 560.0 + 2.0 * body));
+  return 0.1 + 0.42 * lines * body + 0.12 * body + 0.65 * lit * exp(-dIn * 240.0);
+}
+
+float engine(vec2 p, float t) {
+  float px = 1.2 / u_res.y;
+  vec2 T = vec2(0.3, -0.02);
+  vec2 S = T + vec2(0.0, 0.1);
+  float R = 0.2;
+  vec2 d = p - S;
+  float r = length(d);
+  float a = atan(d.y, d.x);
+  float lit = 0.3 + 0.7 * exp(-abs(p.x - S.x) * 2.5);
+
+  // Sky: Nous blue deepening upward, a soft glow around the sun, engraved horizontal hatching, a few stars.
+  float v = 0.1 + 0.1 * smoothstep(0.5, -0.25, p.y) + 0.22 * exp(-r * 3.2) + 0.05 * fbm(p * 2.0 + vec2(t * 0.01, 0.0));
+  v += 0.035 * smoothstep(0.6, 1.0, 0.5 + 0.5 * sin(p.y * 420.0 + 2.0 * fbm(p * 3.0)));
+  v += 0.5 * stars(p + vec2(t * 0.002, 0.0), 26.0, t, 11.0, 0.12) * smoothstep(0.05, 0.4, p.y);
+
+  // Engraved rays fanning out behind everything; they stay white, the gold is the sun's alone.
+  float k = (a + t * 0.01) / 6.28318 * 180.0;
+  float id = floor(k);
+  float h = hash(vec2(id, 3.7));
+  float len = 0.15 + 0.75 * pow(hash(vec2(id, 9.1)), 1.3);
+  float line = 1.0 - smoothstep(0.05 + 0.05 * h, 0.14 + 0.06 * h, abs(fract(k) - 0.5));
+  float r0 = R + 0.06;
+  float reach = smoothstep(r0, r0 + 0.02, r) * (1.0 - smoothstep(r0 + len * 0.7, r0 + len, r));
+  float sheaf = 0.4 + 0.9 * smoothstep(0.45, 0.95, noise(vec2(a * 2.6, 1.7 + t * 0.02)));
+  float shimmer = 0.6 + 0.4 * sin(t * (0.4 + h) + h * 30.0);
+  v = min(v + 0.75 * line * reach * sheaf * shimmer * (0.45 + 0.55 * h), 0.74);
+
+  // An astrolabe circle with fine ticks, two small bodies on slow orbits.
+  float rO = R + 0.19;
+  float ticks = (1.0 - smoothstep(0.04, 0.08, abs(fract(a / 6.28318 * 72.0) - 0.5) * 2.0 - 0.9)) * step(rO, r) * step(r, rO + 0.01);
+  v = max(v, 0.38 * exp(-abs(r - rO) * 1400.0) + 0.3 * ticks);
+  for (int m = 0; m < 2; m++) {
+    float am = t * (0.03 + 0.015 * float(m)) + float(m) * 2.6;
+    vec2 body = S + vec2(cos(am), sin(am)) * (rO + 0.005);
+    v = max(v, 0.75 * (1.0 - smoothstep(0.004, 0.006, length(p - body))));
+  }
+
+  // A Greek key ring turning slowly around the sun, between two fine circles.
+  float r1 = R + 0.016;
+  float r2 = R + 0.05;
+  float band = step(r1, r) * step(r, r2);
+  float u = (a / 6.28318 + 0.5) * 44.0 + t * 0.03;
+  float key = 1.0 - smoothstep(0.06, 0.1, tKey(vec2(fract(u), (r - r1) / (r2 - r1) * 1.3 - 0.15)));
+  v = mix(v, 0.2 + 0.55 * key, band);
+  v += 0.5 * (exp(-abs(r - r1 + 0.004) * 900.0) + exp(-abs(r - r2 - 0.004) * 900.0));
+
+  // The sun: an engraved disc with a hot gold core and a bright rim.
+  float hatch = smoothstep(0.3, 0.8, 0.5 + 0.5 * sin((d.y + 0.015 * fbm(d * 8.0 + t * 0.02)) * 380.0));
+  float sun = 0.5 + 0.25 * hatch + 0.45 * exp(-r / R * 2.2);
+  v = mix(v, sun, 1.0 - smoothstep(R - px, R, r));
+  v += 0.6 * exp(-abs(r - R) * 400.0);
+
+  // The far bank of cloud, behind the temple.
+  float topB = tPuffs(p.x + t * 0.004, -0.19, 0.045, 3.0);
+  v = mix(v, tCloud(p, topB, lit, t), smoothstep(topB + px, topB - px, p.y));
+
+  // The temple, backlit: three steps, six columns (one broken), its roof floating free above them.
+  vec2 q = p - T;
+  float cov = 0.0;
+  float stone = 0.0;
+  for (int s = 0; s < 3; s++) {
+    float fs = float(s);
+    float top = -0.13 - 0.016 * fs;
+    float c = 1.0 - smoothstep(-px, px, tBox(q, vec2(0.0, top - 0.008), vec2(0.235 + 0.016 * fs, 0.008)));
+    stone = mix(stone, 0.08 + 0.1 * smoothstep(0.7, 1.0, 0.5 + 0.5 * sin((q.x + q.y) * 640.0)) + 0.55 * exp(-abs(q.y - top) * 900.0), c);
+    cov = max(cov, c);
+  }
+  for (int i = 0; i < 6; i++) {
+    float fi = float(i);
+    float cx = -0.19 + fi * 0.076;
+    float broken = step(3.5, fi) * step(fi, 4.5);
+    float top = mix(0.06, -0.02 + 0.016 * noise(vec2(q.x * 90.0, fi)), broken);
+    float hw = 0.0165 - 0.0025 * clamp((q.y + 0.13) / 0.19, 0.0, 1.0);
+    float c = 1.0 - smoothstep(-px, px, max(abs(q.x - cx) - hw, max(-0.13 - q.y, q.y - top)));
+    stone = mix(stone, tFluted((q.x - cx) / hw, q), c);
+    cov = max(cov, c);
+    float cap = min(tBox(q, vec2(cx, 0.065), vec2(0.021, 0.005)), tBox(q, vec2(cx, 0.074), vec2(0.026, 0.004)));
+    c = (1.0 - smoothstep(-px, px, cap)) * (1.0 - broken);
+    stone = mix(stone, 0.08 + 0.5 * exp(-abs(q.y - 0.078) * 900.0) + 0.35 * exp(-abs(q.y - 0.07) * 900.0), c);
+    cov = max(cov, c);
+  }
+  // The broken column's upper drums drift up into the light.
+  for (int j = 0; j < 3; j++) {
+    float fj = float(j);
+    vec2 dr = tDrum(q, vec2(0.114 + 0.006 * sin(t * 0.2 + fj * 2.4), 0.014 + 0.042 * fj + 0.006 * sin(t * 0.5 + fj * 2.0)),
+                    vec2(0.0145, 0.016), 0.14 * sin(t * 0.3 + fj * 1.7) + 0.1 * (fj - 1.0));
+    float c = 1.0 - smoothstep(-px, px, dr.x);
+    stone = mix(stone, dr.y, c);
+    cov = max(cov, c);
+  }
+  // Entablature and pediment, lifted on the light.
+  float L = 0.034 + 0.006 * sin(t * 0.4);
+  float yA = 0.078 + L;
+  float c = 1.0 - smoothstep(-px, px, tBox(q, vec2(0.0, yA + 0.011), vec2(0.225, 0.011)));
+  stone = mix(stone, 0.08 + 0.5 * exp(-abs(q.y - yA) * 900.0) + 0.4 * exp(-abs(q.y - yA - 0.022) * 900.0) + 0.2 * exp(-abs(q.y - yA - 0.011) * 900.0), c);
+  cov = max(cov, c);
+  float yF = yA + 0.022;
+  c = 1.0 - smoothstep(-px, px, tBox(q, vec2(0.0, yF + 0.013), vec2(0.225, 0.013)));
+  float fkey = 1.0 - smoothstep(0.07, 0.11, tKey(vec2(fract(q.x / 0.026 + 0.5), (q.y - yF) / 0.026 * 1.3 - 0.15)));
+  stone = mix(stone, 0.09 + 0.5 * fkey, c);
+  cov = max(cov, c);
+  float yC = yF + 0.026;
+  c = 1.0 - smoothstep(-px, px, tBox(q, vec2(0.0, yC + 0.005), vec2(0.24, 0.005)));
+  float dentils = step(0.5, fract(q.x * 110.0)) * step(q.y, yC + 0.004);
+  stone = mix(stone, 0.1 + 0.2 * dentils + 0.55 * exp(-abs(q.y - yC - 0.01) * 900.0), c);
+  cov = max(cov, c);
+  float yP = yC + 0.01;
+  float ped = min(q.y - yP, yP + 0.07 * (1.0 - abs(q.x) / 0.24) - q.y);
+  c = smoothstep(-px, px, ped);
+  float inner = min(q.y - yP - 0.007, yP + 0.07 * (1.0 - abs(q.x) / 0.24) - 0.011 - q.y);
+  float emblem = length(q - vec2(0.0, yP + 0.024));
+  float pedVal = 0.08 + 0.1 * smoothstep(0.7, 1.0, 0.5 + 0.5 * sin((q.x + q.y) * 640.0)) + 0.5 * exp(-abs(inner) * 800.0)
+    + 0.6 * (1.0 - smoothstep(0.007, 0.0085, emblem)) + 0.4 * exp(-abs(emblem - 0.012) * 1600.0);
+  stone = mix(stone, pedVal, c);
+  cov = max(cov, c);
+  v = mix(v, stone, cov);
+  v += 0.1 * exp(-r * 4.0);
+
+  // Feathers drifting down past the temple, swaying as they fall.
+  for (int f = 0; f < 5; f++) {
+    float ff = float(f);
+    float hx = hash(vec2(ff, 21.0));
+    float fall = fract(hash(vec2(ff, 5.0)) - t * (0.004 + 0.003 * hx));
+    vec2 fc = vec2(mix(-0.7, 0.85, fract(hx + ff * 0.37)) + 0.03 * sin(t * 0.45 + ff * 2.3), 0.52 - fall * 1.0);
+    vec2 fe = tFeather(p, fc, 0.9 * sin(t * 0.35 + ff * 1.7) + 0.6 * (hx - 0.5), 0.06 + 0.035 * hash(vec2(ff, 9.0)), px);
+    v = mix(v, fe.y, fe.x);
+  }
+
+  // The near bank of cloud, over the temple's lowest step, in stacked puffs.
+  float drift = p.x - t * 0.007;
+  float topF = tPuffs(drift, -0.255, 0.07, 9.0);
+  float e1 = tPuffs(drift + 0.031, -0.32, 0.065, 13.0);
+  float e2 = tPuffs(drift + 0.017, -0.39, 0.085, 17.0);
+  float cf = tCloud(p, topF, lit * 0.95, t);
+  cf = mix(cf, tCloud(p, e1, lit * 0.85, t), step(p.y, e1));
+  cf = mix(cf, tCloud(p, e2, lit * 0.75, t), step(p.y, e2));
+  v = mix(v, cf, smoothstep(topF + px, topF - px, p.y));
+
+  // Motes rising in the glow.
+  v += 0.6 * stars(p + vec2(0.0, -t * 0.015), 55.0, t * 2.0, 5.0, 0.08) * exp(-r * 3.0);
+  return clamp(v, 0.0, 1.0);
+}`,
   summit: `
 float engine(vec2 p, float t) {
   float drift = t * 0.005;

@@ -28,6 +28,7 @@ MAX_DESCRIPTION = 140
 # name -> (one-line summary for the tool schema and the gallery, default params)
 ENGINES: Dict[str, Tuple[str, Dict[str, float]]] = {
     "radiance": ("engraved rays fanning from a halo, the Hermes look", {"speed": 0.6, "scale": 1.0, "intensity": 1.0, "density": 0.5}),
+    "temple": ("a Greek temple backlit by an engraved sun, its roof floating on the light above a sea of cloud", {"speed": 0.6, "scale": 1.0, "intensity": 1.0, "density": 0.5}),
     "summit": ("layered mountain ranges at dusk with sun, fog and stars", {"speed": 0.6, "scale": 1.0, "intensity": 1.0, "density": 0.5}),
     "aurora": ("northern lights over mountains, mirrored in a lake", {"speed": 0.7, "scale": 1.0, "intensity": 1.0, "density": 0.5}),
     "clouds": ("a sea of clouds at sunrise seen from above", {"speed": 0.6, "scale": 1.0, "intensity": 0.85, "density": 0.5}),

@@ -34,6 +34,7 @@ and applied the next time Hermes Desktop connects.
 | Engine | Looks like | Good with |
 |---|---|---|
 | `radiance` | engraved rays fanning from a halo | `none`; brand, celestial, heroic |
+| `temple` | a Greek temple backlit by an engraved sun, its roof floating above cloud | `dither` bayer8 1px; classical, mythic, Nous blue and gold |
 | `summit` | layered mountain ranges at dusk | `dither` bayer4 3px; `invert` for one-bit ink |
 | `aurora` | northern lights mirrored in a lake | `dither` bayer8 2px, `none` |
 | `clouds` | a sea of clouds at sunrise | `dither` noise; `invert` for a light theme |
