@@ -1,0 +1,10 @@
+__pycache__/
+*.pyc
+*.pyo
+.pytest_cache/
+node_modules/
+tests/harness/bundle.js
+tests/out/
+*.log
+.DS_Store
+Thumbs.db
