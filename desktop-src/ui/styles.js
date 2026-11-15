@@ -35,9 +35,14 @@ export const CSS = `
 .ae-tags { display: flex; gap: 4px; margin-top: 4px; flex-wrap: wrap; }
 .ae-tag { font-size: 0.6875rem; padding: 1px 7px; border-radius: 99px; background: var(--ui-bg-quaternary); color: var(--ui-text-tertiary); }
 .ae-on { font-size: 0.6875rem; font-weight: 600; padding: 1px 8px; border-radius: 99px; background: var(--ui-accent); color: var(--dt-midground-foreground, #fff); }
-.ae-x { position: absolute; top: 8px; right: 8px; width: 24px; height: 24px; border-radius: 8px; border: 0; cursor: pointer;
-  display: none; align-items: center; justify-content: center; background: color-mix(in srgb, var(--ui-bg-chrome) 80%, transparent); color: var(--ui-text-secondary); }
-.ae-card:hover .ae-x { display: inline-flex; }
+.ae-cardwrap { position: relative; display: flex; flex-direction: column; }
+.ae-cardwrap > .ae-card { flex: 1; }
+.ae-card-actions { position: absolute; top: 8px; right: 8px; display: flex; gap: 4px; opacity: 0; transition: opacity 120ms ease; }
+.ae-cardwrap:hover .ae-card-actions, .ae-cardwrap:focus-within .ae-card-actions { opacity: 1; }
+.ae-act { width: 26px; height: 26px; border-radius: 8px; border: 0; cursor: pointer; display: inline-flex; align-items: center;
+  justify-content: center; background: color-mix(in srgb, var(--ui-bg-chrome) 82%, transparent); color: var(--ui-text-secondary);
+  box-shadow: inset 0 0 0 1px var(--ui-stroke-secondary); }
+.ae-act:hover { color: var(--ui-text-primary); }
 .ae-empty { font-size: 0.8125rem; color: var(--ui-text-tertiary); padding: 6px 0; }
 .ae-foot { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; font-size: 0.75rem; color: var(--ui-text-tertiary); }
 .ae-settings { display: flex; flex-direction: column; gap: 4px; }
@@ -77,7 +82,7 @@ export const CSS = `
 @media (max-width: 720px) { .ae-ed { grid-template-columns: minmax(0, 1fr); } }
 @keyframes ae-breathe { 0%, 100% { opacity: 0.55; } 50% { opacity: 1; } }
 .ae-chip .ae-dot[data-on] { animation: ae-breathe 3.2s ease-in-out infinite; }
-@media (prefers-reduced-motion: reduce) { .ae-card { transition: none; } .ae-chip .ae-dot[data-on] { animation: none; } }
+@media (prefers-reduced-motion: reduce) { .ae-card, .ae-card-actions { transition: none; } .ae-chip .ae-dot[data-on] { animation: none; } }
 `
 
 export function Styles() {

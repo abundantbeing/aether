@@ -3871,6 +3871,9 @@ var $themeName = sdk.atom("");
 var $paintedName = sdk.atom("");
 var $agentHalf = sdk.atom(null);
 var $editing = sdk.atom("");
+function openEditor(slug) {
+  $editing.set(typeof slug === "string" ? slug : "");
+}
 function closeEditor() {
   $editing.set("");
 }
@@ -4546,9 +4549,14 @@ var CSS2 = `
 .ae-tags { display: flex; gap: 4px; margin-top: 4px; flex-wrap: wrap; }
 .ae-tag { font-size: 0.6875rem; padding: 1px 7px; border-radius: 99px; background: var(--ui-bg-quaternary); color: var(--ui-text-tertiary); }
 .ae-on { font-size: 0.6875rem; font-weight: 600; padding: 1px 8px; border-radius: 99px; background: var(--ui-accent); color: var(--dt-midground-foreground, #fff); }
-.ae-x { position: absolute; top: 8px; right: 8px; width: 24px; height: 24px; border-radius: 8px; border: 0; cursor: pointer;
-  display: none; align-items: center; justify-content: center; background: color-mix(in srgb, var(--ui-bg-chrome) 80%, transparent); color: var(--ui-text-secondary); }
-.ae-card:hover .ae-x { display: inline-flex; }
+.ae-cardwrap { position: relative; display: flex; flex-direction: column; }
+.ae-cardwrap > .ae-card { flex: 1; }
+.ae-card-actions { position: absolute; top: 8px; right: 8px; display: flex; gap: 4px; opacity: 0; transition: opacity 120ms ease; }
+.ae-cardwrap:hover .ae-card-actions, .ae-cardwrap:focus-within .ae-card-actions { opacity: 1; }
+.ae-act { width: 26px; height: 26px; border-radius: 8px; border: 0; cursor: pointer; display: inline-flex; align-items: center;
+  justify-content: center; background: color-mix(in srgb, var(--ui-bg-chrome) 82%, transparent); color: var(--ui-text-secondary);
+  box-shadow: inset 0 0 0 1px var(--ui-stroke-secondary); }
+.ae-act:hover { color: var(--ui-text-primary); }
 .ae-empty { font-size: 0.8125rem; color: var(--ui-text-tertiary); padding: 6px 0; }
 .ae-foot { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; font-size: 0.75rem; color: var(--ui-text-tertiary); }
 .ae-settings { display: flex; flex-direction: column; gap: 4px; }
@@ -4588,7 +4596,7 @@ var CSS2 = `
 @media (max-width: 720px) { .ae-ed { grid-template-columns: minmax(0, 1fr); } }
 @keyframes ae-breathe { 0%, 100% { opacity: 0.55; } 50% { opacity: 1; } }
 .ae-chip .ae-dot[data-on] { animation: ae-breathe 3.2s ease-in-out infinite; }
-@media (prefers-reduced-motion: reduce) { .ae-card { transition: none; } .ae-chip .ae-dot[data-on] { animation: none; } }
+@media (prefers-reduced-motion: reduce) { .ae-card, .ae-card-actions { transition: none; } .ae-chip .ae-dot[data-on] { animation: none; } }
 `;
 function Styles() {
   return /* @__PURE__ */ jsx2("style", { children: CSS2 });
@@ -5009,46 +5017,44 @@ function ThemeCard({ record, active, onDelete }) {
   const [hover, setHover] = useState3(false);
   const scene = record.scene;
   return /* @__PURE__ */ jsxs5(
-    "button",
+    "div",
     {
-      "aria-pressed": active,
-      className: "ae-card",
-      "data-active": active ? "" : void 0,
+      className: "ae-cardwrap",
       onBlur: () => setHover(false),
-      onClick: () => applyRecord(record, { origin: "user" }),
       onFocus: () => setHover(true),
       onMouseEnter: () => setHover(true),
       onMouseLeave: () => setHover(false),
-      title: `Apply ${record.label}`,
-      type: "button",
       children: [
-        /* @__PURE__ */ jsx7(ScenePreview, { animate: hover || active, record }),
-        /* @__PURE__ */ jsxs5("div", { className: "ae-card-body", children: [
-          /* @__PURE__ */ jsxs5("div", { className: "ae-card-title", children: [
-            sdk.DecodeText ? /* @__PURE__ */ jsx7(sdk.DecodeText, { active: hover, text: record.label }, hover ? "on" : "off") : /* @__PURE__ */ jsx7("span", { children: record.label }),
-            active ? /* @__PURE__ */ jsx7("span", { className: "ae-on", children: "On" }) : null
-          ] }),
-          /* @__PURE__ */ jsx7("div", { className: "ae-card-desc", children: record.description }),
-          /* @__PURE__ */ jsxs5("div", { className: "ae-tags", children: [
-            /* @__PURE__ */ jsx7("span", { className: "ae-tag", children: scene.engine }),
-            scene.finish.style !== "none" ? /* @__PURE__ */ jsx7("span", { className: "ae-tag", children: scene.finish.style }) : null,
-            /* @__PURE__ */ jsx7("span", { className: "ae-tag", children: record.appearance })
-          ] })
-        ] }),
-        onDelete ? /* @__PURE__ */ jsx7(
-          "span",
+        /* @__PURE__ */ jsxs5(
+          "button",
           {
-            "aria-label": `Delete ${record.label}`,
-            className: "ae-x",
-            onClick: (event) => {
-              event.stopPropagation();
-              onDelete(record);
-            },
-            role: "button",
-            tabIndex: -1,
-            children: /* @__PURE__ */ jsx7(sdk.Codicon, { name: "close" })
+            "aria-pressed": active,
+            className: "ae-card",
+            "data-active": active ? "" : void 0,
+            onClick: () => applyRecord(record, { origin: "user" }),
+            title: `Apply ${record.label}`,
+            type: "button",
+            children: [
+              /* @__PURE__ */ jsx7(ScenePreview, { animate: hover || active, record }),
+              /* @__PURE__ */ jsxs5("div", { className: "ae-card-body", children: [
+                /* @__PURE__ */ jsxs5("div", { className: "ae-card-title", children: [
+                  sdk.DecodeText ? /* @__PURE__ */ jsx7(sdk.DecodeText, { active: hover, text: record.label }, hover ? "on" : "off") : /* @__PURE__ */ jsx7("span", { children: record.label }),
+                  active ? /* @__PURE__ */ jsx7("span", { className: "ae-on", children: "On" }) : null
+                ] }),
+                /* @__PURE__ */ jsx7("div", { className: "ae-card-desc", children: record.description }),
+                /* @__PURE__ */ jsxs5("div", { className: "ae-tags", children: [
+                  /* @__PURE__ */ jsx7("span", { className: "ae-tag", children: scene.engine }),
+                  scene.finish.style !== "none" ? /* @__PURE__ */ jsx7("span", { className: "ae-tag", children: scene.finish.style }) : null,
+                  /* @__PURE__ */ jsx7("span", { className: "ae-tag", children: record.appearance })
+                ] })
+              ] })
+            ]
           }
-        ) : null
+        ),
+        /* @__PURE__ */ jsxs5("div", { className: "ae-card-actions", children: [
+          /* @__PURE__ */ jsx7("button", { "aria-label": `Change the colours of ${record.label}`, className: "ae-act", onClick: () => openEditor(record.slug), title: "Colours", type: "button", children: /* @__PURE__ */ jsx7(sdk.Codicon, { name: "symbol-color" }) }),
+          onDelete ? /* @__PURE__ */ jsx7("button", { "aria-label": `Delete ${record.label}`, className: "ae-act", onClick: () => onDelete(record), title: "Delete", type: "button", children: /* @__PURE__ */ jsx7(sdk.Codicon, { name: "close" }) }) : null
+        ] })
       ]
     }
   );
@@ -5106,8 +5112,8 @@ function Gallery() {
       ] }),
       /* @__PURE__ */ jsx7(Ask, {}),
       /* @__PURE__ */ jsxs5("section", { className: "ae-section", children: [
-        /* @__PURE__ */ jsx7("div", { className: "ae-section-head", children: /* @__PURE__ */ jsx7("h2", { className: "ae-h2", children: "Made by Hermes" }) }),
-        mine.length ? /* @__PURE__ */ jsx7("div", { className: "ae-grid", children: mine.map((record) => /* @__PURE__ */ jsx7(ThemeCard, { active: active === record.slug, onDelete, record }, record.slug)) }) : /* @__PURE__ */ jsx7("div", { className: "ae-empty", children: "Nothing yet. Describe a theme above, or just tell Hermes what you want in any chat." })
+        /* @__PURE__ */ jsx7("div", { className: "ae-section-head", children: /* @__PURE__ */ jsx7("h2", { className: "ae-h2", children: "Your themes" }) }),
+        mine.length ? /* @__PURE__ */ jsx7("div", { className: "ae-grid", children: mine.map((record) => /* @__PURE__ */ jsx7(ThemeCard, { active: active === record.slug, onDelete, record }, record.slug)) }) : /* @__PURE__ */ jsx7("div", { className: "ae-empty", children: "Nothing yet. Describe a theme above, tell Hermes what you want in any chat, or change a preset's colours." })
       ] }),
       /* @__PURE__ */ jsxs5("section", { className: "ae-section", children: [
         /* @__PURE__ */ jsx7("div", { className: "ae-section-head", children: /* @__PURE__ */ jsx7("h2", { className: "ae-h2", children: "Presets" }) }),
