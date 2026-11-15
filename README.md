@@ -141,6 +141,13 @@ hermes plugins validate .
 
 `tests/shaders.mjs` compiles every engine and finish pair (220 programs) in headless Chromium and checks each paints more than one colour. `tests/render_presets.mjs` and `tests/render_scenes.mjs` render presets or any scene spec to PNG for art direction.
 
+`tests/render_frames.mjs` renders any preset (or `all` of them, or a scene spec) as a frame-exact PNG sequence for video, up to 4K, with optional finish override, glass veil and a scripted pointer sweep:
+
+```bash
+node tests/render_frames.mjs "Event Horizon" out --width 3840 --height 2160 --scale 2 --fps 60 --seconds 10 --pointer sweep
+ffmpeg -framerate 60 -i out/event-horizon/%05d.png -c:v libx264 -crf 12 -preset slow -pix_fmt yuv420p event-horizon.mp4
+```
+
 ## Credits
 
 OKLab and OKLCH by Bjorn Ottosson. The cyanotype, gold and amber palettes and Nous blue follow the Hermes Agent and Nous Research visual identity; this is an unofficial community plugin and Hermes and Nous Research belong to their owners.
