@@ -1809,7 +1809,7 @@ export const PRESETS = [
         "pattern": "bayer8"
       },
       "glass": {
-        "tint": 0.59,
+        "tint": 0.6,
         "focus": 0.18
       }
     },

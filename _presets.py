@@ -130,7 +130,7 @@ PRESET_SPECS: List[Dict[str, Any]] = [
         "scene": {"engine": "wings", "colors": ["#04061a", "#121a4a", "#9a7434", "#f0c25a", "#fff3cf"],
                   "speed": 1.0, "intensity": 1.0},
         "finish": {"style": "dither", "pixel": 2, "pattern": "bayer8"},
-        "glass": {"tint": 0.5, "focus": 0.18},
+        "glass": {"tint": 0.6, "focus": 0.18},
     },
     {
         "name": "Styx",
