@@ -94,7 +94,7 @@ flowchart LR
     T["aether_theme / aether_gallery<br/>/aether"] --> N["normalize: palette from seeds,<br/>readability floor, scene clamps,<br/>SVG guard"]
     N --> S[("plugin-data/aether/themes.json<br/>(per profile)")]
     N -- "ctx.emit_to_session<br/>plugin.aether.theme" --> E
-    R["RPC plugin.aether.state / ack / delete"] --- S
+    R["RPC plugin.aether.state / ack / delete<br/>preview / save (colour editor)"] --- S
   end
   subgraph Desktop["Hermes Desktop (desktop/plugin.js)"]
     E["session event"] --> A["THEMES_AREA + requestTheme"]
