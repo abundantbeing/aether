@@ -38,7 +38,7 @@ Screenshots show the actual plugin in the Hermes Webapp (the Desktop renderer in
 | After Hours | A neon city in the rain, its windows doubled in the wet street |
 | Hanami | Cherry boughs overhead and petals drifting down through spring light |
 | Helios | A striped sun over an endless grid, dithered like an old arcade cabinet |
-| Talaria | Golden wings at full speed over a sea of cloud, feathers torn loose by the wind |
+| Talaria | Silver wings at full speed over a sea of cloud, feathers torn loose by the wind |
 | Styx | Dark river contours drifting slowly |
 | Phosphor | The classic Hermes amber terminal, raining in text characters |
 | Caduceus Gold | Sparks rising in the gold-to-bronze of the Hermes banner |
