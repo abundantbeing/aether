@@ -4569,7 +4569,7 @@ var CSS2 = `
 .ae-chip:hover { color: var(--ui-text-primary); }
 .ae-pop { display: flex; flex-direction: column; gap: 10px; width: 260px; padding: 4px; }
 .ae-pop-title { font-weight: 600; font-size: 0.8125rem; }
-.ae-ed { display: grid; grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr); gap: 18px; width: min(780px, 86vw); text-align: left; }
+.ae-ed { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 16px; width: min(680px, 84vw); text-align: left; }
 .ae-ed-side { display: flex; flex-direction: column; gap: 10px; min-width: 0; }
 .ae-ed-side canvas { border-radius: 10px; box-shadow: inset 0 0 0 1px var(--ui-stroke-secondary); }
 .ae-ed-notes { display: flex; flex-direction: column; gap: 6px; min-height: 2.5em; }
@@ -4582,7 +4582,7 @@ var CSS2 = `
 .ae-ed-group { display: flex; flex-direction: column; gap: 6px; margin: 0; padding: 0; border: 0; min-width: 0; }
 .ae-ed-group > button { align-self: flex-start; }
 .ae-ed-legend { font-size: 0.6875rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em; color: var(--ui-text-tertiary); padding: 0; margin-bottom: 2px; }
-.ae-sw { display: grid; grid-template-columns: 28px minmax(0, 1fr) 92px 22px; align-items: center; gap: 8px; }
+.ae-sw { display: grid; grid-template-columns: 28px minmax(0, 1fr) 84px 22px; align-items: center; gap: 8px; }
 .ae-sw-pick { width: 28px; height: 28px; padding: 0; border: 0; border-radius: 8px; cursor: pointer; background: transparent;
   box-shadow: inset 0 0 0 1px var(--ui-stroke-secondary); }
 .ae-sw-pick::-webkit-color-swatch-wrapper { padding: 2px; }
