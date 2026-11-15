@@ -82,6 +82,10 @@ Use the same Hermes profile for installation and Desktop. No API keys or extra s
 
 ![The /aether slash command applying Event Horizon](docs/screenshots/slash-command.png)
 
+### Changing a theme's colours
+
+Every card in the gallery has a **Colours** button (so does the status chip, for the theme that is on). It opens an editor with the theme's background, accent, text and 2 to 5 scene colours, and a live preview of the scene. As you change them, Aether checks readability exactly as it does for Hermes's themes and says in plain words what it had to move, for example an accent lightened so it stays visible. **Save and apply** keeps the result for this profile: a preset becomes "Selene (custom)" next to the original, and a theme of your own is updated in place. You can also just ask: "Selene, but gold" starts from Selene and changes only the colours. Saving needs the Agent half; without it the editor shows the colours read-only.
+
 ## How it works
 
 ```mermaid
