@@ -1,0 +1,16 @@
+{
+  "name": "hermes-aether",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Living themes for Hermes Desktop: the desktop half's source and build.",
+  "license": "MIT",
+  "type": "module",
+  "scripts": {
+    "presets": "python3 scripts/gen_presets.py",
+    "build": "python3 scripts/gen_presets.py && esbuild desktop-src/plugin.jsx --bundle --format=esm --platform=browser --target=es2022 --jsx=automatic --loader:.js=jsx --external:@hermes/plugin-sdk --external:react --external:react/jsx-runtime --legal-comments=none --outfile=desktop/plugin.js",
+    "check": "python3 scripts/gen_presets.py --check && node tests/lint_desktop.mjs && node tests/shaders.mjs"
+  },
+  "devDependencies": {
+    "esbuild": "0.28.1"
+  }
+}
