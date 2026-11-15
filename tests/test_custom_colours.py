@@ -68,13 +68,13 @@ def test_a_new_finish_style_or_engine_starts_from_its_own_defaults():
 
 
 def test_a_new_background_redraws_text_and_the_calm_end_of_the_scene():
-    blue = PRESETS["Hermes Blue"]  # white text chosen for Nous blue
-    spec, notes = with_base({"background": "#f2f2f2"}, blue)
+    paper = PRESETS["Cyanotype"]  # deep ink text chosen for paper, a scene that starts at the paper
+    spec, notes = with_base({"background": "#0b0b1a"}, paper)
     assert "foreground" not in spec
-    assert spec["scene"]["colors"][0] == "#f2f2f2"
-    record = normalize({**spec, "name": "Blue on paper"})
+    assert spec["scene"]["colors"][0] == "#0b0b1a"
+    record = normalize({**spec, "name": "Cyanotype at night"})
     colors = record["theme"]["colors"]
-    assert record["appearance"] == "light"
+    assert record["appearance"] == "dark"
     assert contrast(colors["foreground"], colors["background"]) >= 7.0
     assert len(notes) == 2
 
