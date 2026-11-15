@@ -125,11 +125,11 @@ PRESET_SPECS: List[Dict[str, Any]] = [
     },
     {
         "name": "Talaria",
-        "description": "The winged sandals at full speed: wind lines streaming past",
-        "background": "#060b1a", "accent": "#4a84fe",
-        "scene": {"engine": "streaks", "colors": ["#060b1a", "#0e2350", "#3b7bff", "#cfe1ff"],
-                  "speed": 1.1, "intensity": 0.85, "direction": 8},
-        "finish": "none",
+        "description": "Golden wings at full speed over a sea of cloud, feathers torn loose by the wind",
+        "background": "#060a1f", "accent": "#f0c25a",
+        "scene": {"engine": "wings", "colors": ["#04061a", "#121a4a", "#9a7434", "#f0c25a", "#fff3cf"],
+                  "speed": 1.0, "intensity": 1.0},
+        "finish": {"style": "dither", "pixel": 2, "pattern": "bayer8"},
         "glass": {"tint": 0.5, "focus": 0.18},
     },
     {
