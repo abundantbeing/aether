@@ -60,7 +60,7 @@ Open it from the command palette (Aether: Open theme gallery), the status-bar ch
 You need Hermes 0.23.1 or newer with Hermes Desktop (or the Webapp).
 
 ```bash
-hermes plugins install abundantbeing/hermes-aether --enable
+hermes plugins install abundantbeing/aether --enable
 ```
 
 Then, in Hermes Desktop:

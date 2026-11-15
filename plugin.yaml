@@ -9,7 +9,7 @@ description: >-
   readability floor on every theme, and motion that reacts to you and sleeps when you are away.
 author: abundantbeing
 license: MIT
-homepage: https://github.com/abundantbeing/hermes-aether
+homepage: https://github.com/abundantbeing/aether
 requires_hermes: ">=0.23.1"
 tags: [desktop, theme, appearance, backdrop, animation]
 provides_tools:
