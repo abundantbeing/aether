@@ -84,8 +84,14 @@ theme of a bright scene (clouds, snow), set `scene.invert` so the brightest part
 6. Call `aether_theme`. Tell the user the name, what the scene does, and any `adjustments` the
    tool reports in one short sentence. If the result has `preview_card`, end your reply with that
    directive line on its own so Desktop shows a live preview with Undo.
-7. For changes ("slower", "more purple", "less busy"), call `aether_theme` again with the same
-   `name` and the changed fields; that replaces the theme in place.
+7. For changes ("slower", "more purple", "less busy"), call `aether_theme` with `base` set to the
+   theme's name and only the fields that change; reusing the same `name` replaces it in place.
+8. To start from a preset or another saved theme ("Selene, but gold", "Folio in Nous blue"), pass
+   `base` with that theme's name, a new `name`, and only what differs, usually `accent`, `background`
+   and `scene.colors`. The scene, finish, glass, speed and font carry over. A new background
+   re-derives the text colour and, when the scene's first colour was the old background, swaps it
+   too. A theme cannot take a preset's own name; the tool saves it as "<name> (custom)".
+   People can also change a theme's colours themselves from the Aether gallery (the Colours button).
 
 ### Hand-drawn SVG scenes
 
