@@ -13,13 +13,13 @@ from typing import Any, Dict, List
 
 PRESET_SPECS: List[Dict[str, Any]] = [
     {
-        "name": "Hermes Blue",
-        "description": "The messenger's halo: engraved light radiating across Nous blue",
+        "name": "Olympus",
+        "description": "A temple above the clouds, its roof lifted on the light of an engraved sun, in Nous blue and gold",
         "background": "#0000f2", "accent": "#ffcd42", "foreground": "#ffffff",
-        "scene": {"engine": "radiance", "colors": ["#0000f2", "#2233ff", "#8c9aff", "#e8ecff", "#ffffff"],
+        "scene": {"engine": "temple", "colors": ["#000091", "#0000f2", "#7d8bff", "#f2f2f2", "#ffcd42"],
                   "speed": 0.6, "intensity": 1.0},
-        "finish": "none",
-        "glass": {"tint": 0.62, "focus": 0.18},
+        "finish": {"style": "dither", "pixel": 1, "pattern": "bayer8"},
+        "glass": {"tint": 0.6, "focus": 0.18},
     },
     {
         "name": "Cyanotype",

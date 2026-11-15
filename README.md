@@ -2,7 +2,7 @@
   <img src="docs/catalog-cover.jpg" alt="Aether: living themes for Hermes Desktop" width="1200">
 </p>
 
-**Living themes for Hermes Desktop.** Tell Hermes the look you want ("a slow dithered sunset over the sea", "a black hole, but gold", "my terminal, amber and raining") and it paints a full palette plus an animated scene behind your chats. Or pick one of eighteen hand-tuned scenes: auroras over still lakes, dawn over the edge of the world, a neon city in the rain, Hermes in his own blue.
+**Living themes for Hermes Desktop.** Tell Hermes the look you want ("a slow dithered sunset over the sea", "a black hole, but gold", "my terminal, amber and raining") and it paints a full palette plus an animated scene behind your chats. Or pick one of eighteen hand-tuned scenes: auroras over still lakes, dawn over the edge of the world, a neon city in the rain, a temple above the clouds in Nous blue and gold.
 
 ![Asking Hermes for a dithered sunset: the theme, the scene and a preview card with Undo](docs/screenshots/hero-agent-theme.png)
 
@@ -26,7 +26,7 @@ Screenshots show the actual plugin in the Hermes Webapp (the Desktop renderer in
 
 | Scene | What it is |
 |---|---|
-| Hermes Blue | The messenger's halo: engraved light radiating across Nous blue (#0000F2) |
+| Olympus | A temple above the clouds, its roof lifted on the light of an engraved sun, in Nous blue (#0000F2) and gold |
 | Cyanotype | Nous blue ink stippled through paper, drifting like a print still developing |
 | Aether | Northern lights pouring over a mountain lake, mirrored in still water |
 | Alpenglow | Ranges fading into a violet dusk, valley fog drifting between them |

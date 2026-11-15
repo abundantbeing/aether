@@ -1230,17 +1230,17 @@ function makeLoop(paint, fps, pauseWhenUnfocused) {
 // desktop-src/presets.generated.js
 var PRESETS = [
   {
-    "slug": "aether-hermes-blue",
-    "label": "Hermes Blue",
-    "description": "The messenger's halo: engraved light radiating across Nous blue",
+    "slug": "aether-olympus",
+    "label": "Olympus",
+    "description": "A temple above the clouds, its roof lifted on the light of an engraved sun, in Nous blue and gold",
     "appearance": "dark",
     "source": "preset",
     "created_at": 0,
     "updated_at": 0,
     "theme": {
-      "name": "aether-hermes-blue",
-      "label": "Hermes Blue",
-      "description": "The messenger's halo: engraved light radiating across Nous blue",
+      "name": "aether-olympus",
+      "label": "Olympus",
+      "description": "A temple above the clouds, its roof lifted on the light of an engraved sun, in Nous blue and gold",
       "colors": {
         "background": "#0000f2",
         "foreground": "#ffffff",
@@ -1339,13 +1339,13 @@ var PRESETS = [
       }
     },
     "scene": {
-      "engine": "radiance",
+      "engine": "temple",
       "colors": [
+        "#000091",
         "#0000f2",
-        "#2233ff",
-        "#8c9aff",
-        "#e8ecff",
-        "#ffffff"
+        "#7d8bff",
+        "#f2f2f2",
+        "#ffcd42"
       ],
       "speed": 0.6,
       "scale": 1,
@@ -1356,13 +1356,13 @@ var PRESETS = [
       "invert": false,
       "svg": null,
       "finish": {
-        "style": "none",
-        "pixel": 2,
+        "style": "dither",
+        "pixel": 1,
         "levels": 0,
-        "pattern": "bayer4"
+        "pattern": "bayer8"
       },
       "glass": {
-        "tint": 0.62,
+        "tint": 0.6,
         "focus": 0.18
       }
     },
