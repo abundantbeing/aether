@@ -13,7 +13,7 @@ from functools import lru_cache
 from typing import Any, Dict, List, Optional
 
 from . import _store as store
-from ._base import avoid_preset_names, compose
+from ._base import avoid_preset_names, compose, plain
 from ._spec import ENGINES, FINISHES, FONTS, PATTERNS, SpecError, normalize, slugify
 
 logger = logging.getLogger(__name__)
@@ -254,6 +254,31 @@ class Runtime:
     def rpc_ack(self, params: Any = None, **kwargs: Any) -> Dict[str, Any]:
         pending_id = (params or {}).get("id") if isinstance(params, dict) else None
         return {"ok": bool(pending_id) and store.clear_pending(str(pending_id))}
+
+    @staticmethod
+    def _custom_args(params: Any) -> Dict[str, Any]:
+        """Colour-editor params ``{base, label?, background?, accent?, foreground?, scene_colors?}`` as
+        an ``aether_theme`` call layered over the base."""
+        if not isinstance(params, dict) or not params.get("base"):
+            raise SpecError("base is required: the preset or saved theme whose colours are being changed")
+        args: Dict[str, Any] = {"base": str(params["base"])}
+        if str(params.get("label") or "").strip():
+            args["name"] = str(params["label"])
+        for key in ("background", "accent", "foreground"):
+            if params.get(key):
+                args[key] = params[key]
+        if params.get("scene_colors") is not None:
+            args["scene"] = {"colors": params["scene_colors"]}
+        return args
+
+    def rpc_preview(self, params: Any = None, **kwargs: Any) -> Dict[str, Any]:
+        """The theme the colour editor would save, normalized exactly as a save would be; writes nothing."""
+        try:
+            record = build(self._custom_args(params), source="custom")
+        except SpecError as exc:
+            return {"ok": False, "error": str(exc)}
+        return {"ok": True, "record": record, "adjustments": record["adjustments"],
+                "notes": plain(record["adjustments"]), "replaces": store.get(record["slug"]) is not None}
 
     def rpc_delete(self, params: Any = None, **kwargs: Any) -> Dict[str, Any]:
         slug = (params or {}).get("slug") if isinstance(params, dict) else None

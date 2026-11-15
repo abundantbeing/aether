@@ -5,13 +5,17 @@
 Selene's. Three fields follow the call instead of the base, because they only made sense with the
 base's own colours: the text colour (chosen for the old background), the first scene stop when it was
 the old background, and an engine's tuning when the engine changes.
+
+``plain`` turns the normalizer's adjustment notes into sentences for people (the colour editor);
+the agent keeps the exact notes.
 """
 from __future__ import annotations
 
 import copy
+import re
 from typing import Any, Callable, Dict, List, Optional, Tuple
 
-from ._color import is_hex, normalize_hex
+from ._color import is_hex, normalize_hex, parse_hex
 from ._spec import SpecError, slugify
 
 _TOP = ("name", "description", "background", "accent", "foreground", "secondary", "font", "appearance")
@@ -105,3 +109,52 @@ def compose(args: Dict[str, Any], resolve: Callable[[str], Optional[Dict[str, An
     if not args.get("name"):
         spec["name"] = default_label(base)
     return spec, notes, base
+
+
+# ── adjustment notes, in words for people ─────────────────────────────────────────────────────────
+
+def _lum(hex_color: str) -> float:
+    r, g, b = parse_hex(hex_color)
+    return 0.2126 * r + 0.7152 * g + 0.0722 * b
+
+
+_NAMES = {"foreground": "Text", "muted text": "Secondary text", "accent": "Accent"}
+
+
+def _floor_note(m: "re.Match[str]") -> str:
+    name, old, new, ratio = m.group(1), m.group(2), m.group(3), m.group(4)
+    way = "lightened" if _lum(new) > _lum(old) else "darkened"
+    what = "stays visible" if name == "accent" else "stays readable"
+    return f"{_NAMES.get(name, name.capitalize())} {way} from {old} to {new} so it {what} on the background ({ratio}:1)."
+
+
+_PLAIN: List[Tuple["re.Pattern[str]", Callable[["re.Match[str]"], str]]] = [
+    (re.compile(r"^(foreground|muted text|accent) (#[0-9a-f]{6}) -> (#[0-9a-f]{6}) to reach ([\d.]+):1 on .+$"), _floor_note),
+    (re.compile(r"^background (#[0-9a-f]{6}) -> (#[0-9a-f]{6}): too mid-tone.*moved (darker|lighter).*$"),
+     lambda m: f"Background moved {m.group(3)} from {m.group(1)} to {m.group(2)}: text cannot stay readable on a "
+               "mid-tone. Its hue is kept."),
+    (re.compile(r"^glass\.tint ([\d.]+) -> ([\d.]+) so text keeps ([\d.]+):1 over the scene$"),
+     lambda m: f"The glass over the scene is a little thicker ({m.group(1)} to {m.group(2)}) so text stays "
+               f"readable over its brightest part ({m.group(3)}:1)."),
+    (re.compile(r"^scene too bright behind text: glass\.tint -> ([\d.]+) and scene colours softened (\d+)% .*$"),
+     lambda m: f"The scene is too bright to keep text readable over it, so the glass is at its thickest and the "
+               f"scene colours were softened {m.group(2)}% toward the background."),
+    (re.compile(r"^named '(.+)': '(.+)' is a preset.*$"),
+     lambda m: f"Saved as {m.group(1)}: {m.group(2)} is a preset, and presets keep their own names."),
+    (re.compile(r"^text colour re-derived.*$"), lambda m: "Text colour picked for the new background."),
+    (re.compile(r"^the scene's calmest colour follows the new background$"),
+     lambda m: "The scene's calmest colour now matches the new background."),
+]
+
+
+def plain(notes: List[str]) -> List[str]:
+    out = []
+    for note in notes:
+        for pattern, render in _PLAIN:
+            m = pattern.match(note)
+            if m:
+                out.append(render(m))
+                break
+        else:
+            out.append(note[:1].upper() + note[1:] + ("" if note.endswith(".") else "."))
+    return out
