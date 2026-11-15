@@ -50,6 +50,7 @@ and applied the next time Hermes Desktop connects.
 | `starfield` | parallax twinkling stars | `dither` bayer8, `braille` |
 | `embers` | sparks rising from a glow | `dither`; fire, forges, gold |
 | `streaks` | speed lines on a `direction` | `none`, `pixel`; motion, wind |
+| `wings` | a pair of engraved wings beating, feathers torn loose, cloud streaming below | `dither` bayer8 2px, `none`; flight, speed, Hermes |
 | `horizon` | grid floor and a striped sun | `dither`; retro, arcade |
 | `rain` | falling columns of light | `ascii`, `braille`; terminals, code |
 | `constellation` | drifting linked nodes | `none`; networks, minds |

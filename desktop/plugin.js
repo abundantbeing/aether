@@ -741,6 +741,101 @@ float engine(vec2 p, float t) {
   }
   return clamp(v, 0.0, 1.0);
 }`,
+  wings: `
+// One feather rooted at b, pointing along ang: length L, half width W. The trailing vane is wider, the
+// barbs are engraved lines, the tip catches more light. Returns (coverage, value).
+vec2 wFeather(vec2 p, vec2 b, float ang, float L, float W, float px) {
+  vec2 dir = vec2(cos(ang), sin(ang));
+  vec2 q = p - b;
+  float u = dot(q, dir);
+  float v = dot(q, vec2(-dir.y, dir.x)) + 0.06 * L * (u / L) * (u / L);
+  float x = clamp(u / L, 0.0, 1.0);
+  float w = W * sqrt(max(1.0 - x * x * x, 0.0)) * smoothstep(0.0, 0.2, x) * (v < 0.0 ? 1.0 : 0.6);
+  float sd = max(abs(v) - w, max(-u, u - L));
+  float cov = 1.0 - smoothstep(-px, px, sd);
+  float barbs = smoothstep(0.35, 0.85, 0.5 + 0.5 * sin((abs(v) * 1.5 - u) * 560.0));
+  float edge = exp(-abs(abs(v) - w) * 700.0);
+  float shaft = exp(-abs(v) * 1500.0) * step(u, L * 0.96);
+  return vec2(cov, (0.52 + 0.24 * barbs + 0.34 * edge + 0.25 * shaft) * (0.74 + 0.26 * x));
+}
+
+// A whole wing in its own frame (shoulder at the origin): four rows of feathers rooted along a curved
+// leading edge, from the long flight feathers at the back to small coverts along the edge.
+vec2 wWing(vec2 pa, float beat, float px) {
+  vec2 W = vec2(0.24, 0.25);
+  vec2 nrm = normalize(vec2(-W.y, W.x));
+  float cov = 0.0;
+  float wv = 0.0;
+  for (int r = 0; r < 4; r++) {
+    float fr = float(r);
+    float n = r == 3 ? 14.0 : 11.0 - 1.5 * fr;
+    for (int i = 0; i < 14; i++) {
+      float fi = float(i);
+      if (fi >= n) break;
+      float k = fi / (n - 1.0);
+      vec2 root = W * k * (1.0 - 0.04 * fr) + nrm * (0.05 * sin(3.14159 * k) - 0.006 * fr);
+      float ang = mix(-0.95, 0.38, k) + 0.07 * beat * k;
+      float len = r == 3 ? 0.07 + 0.012 * sin(fi * 2.7) : (mix(0.16, 0.46, pow(k, 0.85)) * (1.0 - 0.31 * fr) + 0.015 * sin(fi * 4.1));
+      if (length(pa - root) > len + 0.04) continue;
+      vec2 fe = wFeather(pa, root, ang, len, r == 3 ? 0.022 : 0.034 - 0.004 * fr, px);
+      wv = mix(wv, fe.y * (0.84 + 0.05 * fr), fe.x);
+      cov = max(cov, fe.x);
+    }
+  }
+  return vec2(cov, wv);
+}
+
+float engine(vec2 p, float t) {
+  float px = 1.2 / u_res.y;
+
+  // Night sky lightening toward a horizon far below, faint stars smeared by speed.
+  float v = 0.06 + 0.16 * smoothstep(0.55, -0.4, p.y) + 0.04 * fbm(p * 1.5 + vec2(t * 0.06, 0.0));
+  v += 0.4 * stars(vec2(p.x * 0.35 + t * 0.02, p.y), 30.0, t, 4.0, 0.1) * smoothstep(-0.1, 0.3, p.y);
+
+  // A floor of cloud far below, torn into long drifts by the speed, lit along its crests.
+  float floorY = -0.3 + 0.025 * sin(p.x * 2.0 + t * 0.3);
+  vec2 cq = vec2(p.x * 0.5 + t * 0.4, p.y * 9.0);
+  float drift = fbm(cq) + 0.5 * fbm(cq * 2.3 + 4.0);
+  float body = smoothstep(0.55, 0.95, drift + (floorY - p.y) * 4.0);
+  float lines = smoothstep(0.5, 0.95, 0.5 + 0.5 * sin(p.y * 330.0 + drift * 7.0));
+  v = mix(v, 0.12 + 0.3 * body * (0.5 + 0.5 * lines) + 0.25 * exp(-abs(drift - 0.7) * 30.0) * body, smoothstep(floorY + 0.03, floorY - 0.03, p.y));
+  v += 0.22 * exp(-abs(p.y - floorY) * 50.0);
+
+  // Wind rushing past.
+  for (int l = 0; l < 2; l++) {
+    float fl = float(l);
+    float rows = 22.0 + fl * 18.0;
+    float row = floor(p.y * rows);
+    float h = hash(vec2(row, fl * 7.0 + 1.0));
+    float seg = fract((p.x + t * (0.5 + 0.6 * h) * (1.0 + fl)) * (0.5 + 0.4 * h) + h * 13.0);
+    float streak = smoothstep(0.0, 0.03, seg) * (1.0 - smoothstep(0.03, 0.35 + 0.3 * h, seg));
+    float thick = 1.0 - smoothstep(0.05, 0.22, abs(fract(p.y * rows) - 0.5));
+    v += (0.2 - 0.07 * fl) * streak * thick * step(h, 0.35 + 0.4 * u_density);
+  }
+
+  // A pair of wings beating slowly: the far one higher, smaller and dimmer, the near one in front.
+  float beat = sin(t * 0.9);
+  float rot = 0.09 * beat;
+  mat2 R = mat2(cos(rot), -sin(rot), sin(rot), cos(rot));
+  vec2 far = wWing(R * ((p - vec2(-0.06, 0.1)) / 0.8), beat, px / 0.8);
+  v = mix(v, far.y * 0.5, far.x);
+  vec2 near = wWing(R * (p - vec2(0.1, -0.06)), beat, px);
+  v = mix(v, near.y, near.x);
+
+  // Feathers torn loose by the wind, tumbling away behind.
+  for (int f = 0; f < 6; f++) {
+    float ff = float(f);
+    float h = hash(vec2(ff, 3.3));
+    float x = 0.75 - fract(h * 3.7 + t * (0.05 + 0.04 * h)) * 1.9;
+    vec2 c = vec2(x, -0.2 + 0.55 * hash(vec2(ff, 8.1)) + 0.04 * sin(t * 0.8 + ff * 1.3));
+    float ang = t * (0.6 + 0.8 * h) * (h > 0.5 ? 1.0 : -1.0) + ff;
+    float len = 0.06 + 0.05 * hash(vec2(ff, 1.9));
+    vec2 b = c - vec2(cos(ang), sin(ang)) * len * 0.5;
+    vec2 fe = wFeather(p, b, ang, len, 0.009 + 0.006 * h, px);
+    v = mix(v, fe.y, fe.x);
+  }
+  return clamp(v, 0.0, 1.0);
+}`,
   horizon: `
 float engine(vec2 p, float t) {
   float hz = -0.06;

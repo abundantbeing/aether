@@ -44,6 +44,7 @@ ENGINES: Dict[str, Tuple[str, Dict[str, float]]] = {
     "starfield": ("parallax stars that twinkle over faint dust", {"speed": 0.6, "scale": 1.0, "intensity": 0.9, "density": 0.5}),
     "embers": ("sparks rising from a warm glow", {"speed": 0.8, "scale": 1.0, "intensity": 0.85, "density": 0.5}),
     "streaks": ("wind and speed lines along a direction", {"speed": 1.0, "scale": 1.0, "intensity": 0.75, "density": 0.5}),
+    "wings": ("a great engraved wing beating slowly, feathers torn loose by the wind, cloud streaming far below", {"speed": 1.0, "scale": 1.0, "intensity": 1.0, "density": 0.5}),
     "horizon": ("retro perspective grid under a striped sun", {"speed": 0.7, "scale": 1.0, "intensity": 0.85, "density": 0.5}),
     "rain": ("falling columns of light; pairs with ascii or braille", {"speed": 0.9, "scale": 1.0, "intensity": 0.85, "density": 0.55}),
     "constellation": ("drifting nodes joined by fine lines", {"speed": 0.6, "scale": 1.0, "intensity": 0.85, "density": 0.5}),
