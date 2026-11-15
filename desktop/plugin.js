@@ -4776,6 +4776,7 @@ function StatusChip() {
       /* @__PURE__ */ jsx5(MotionControl, { compact: true }),
       /* @__PURE__ */ jsx5(StrengthControl, {}),
       /* @__PURE__ */ jsxs3("div", { style: { display: "flex", gap: 6 }, children: [
+        /* @__PURE__ */ jsx5(sdk.Button, { onClick: () => openEditor(active.slug), size: "sm", variant: "secondary", children: "Colours" }),
         /* @__PURE__ */ jsx5(sdk.Button, { onClick: () => sdk.host.navigate("/aether"), size: "sm", variant: "secondary", children: "Gallery" }),
         /* @__PURE__ */ jsx5(sdk.Button, { onClick: () => turnOff(), size: "sm", variant: "ghost", children: "Off" })
       ] })
