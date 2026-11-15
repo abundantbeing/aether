@@ -1,7 +1,7 @@
 """Aether: living themes for Hermes Desktop.
 
 Registers two tools (``aether_theme``, ``aether_gallery``), the ``/aether`` slash command, the RPC
-methods the Desktop half syncs and edits colours through (``plugin.aether.state|ack|delete|preview``)
+methods the Desktop half syncs and edits colours through (``plugin.aether.state|ack|delete|preview|save``)
 and one skill (``aether:theme-design``). Theme maths lives in the sibling modules; the renderer is ``desktop/plugin.js``.
 """
 from __future__ import annotations
@@ -29,6 +29,7 @@ def register(ctx) -> None:
         ctx.register_rpc("ack", runtime.rpc_ack)
         ctx.register_rpc("delete", runtime.rpc_delete)
         ctx.register_rpc("preview", runtime.rpc_preview)
+        ctx.register_rpc("save", runtime.rpc_save)
     skill = Path(__file__).resolve().parent / "skills" / "theme-design" / "SKILL.md"
     if skill.exists():
         ctx.register_skill("theme-design", skill)

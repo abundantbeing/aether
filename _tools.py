@@ -280,6 +280,17 @@ class Runtime:
         return {"ok": True, "record": record, "adjustments": record["adjustments"],
                 "notes": plain(record["adjustments"]), "replaces": store.get(record["slug"]) is not None}
 
+    def rpc_save(self, params: Any = None, **kwargs: Any) -> Dict[str, Any]:
+        """Save the colour editor's theme for this profile and return it; the Desktop applies it itself.
+        A preset is saved as "<Preset> (custom)"; a theme of your own is updated under its own name."""
+        try:
+            record = build(self._custom_args(params), source="custom")
+        except SpecError as exc:
+            return {"ok": False, "error": str(exc)}
+        stored = store.save(record)
+        return {"ok": True, "record": stored, "adjustments": record["adjustments"],
+                "notes": plain(record["adjustments"])}
+
     def rpc_delete(self, params: Any = None, **kwargs: Any) -> Dict[str, Any]:
         slug = (params or {}).get("slug") if isinstance(params, dict) else None
         return {"ok": bool(slug) and store.delete(str(slug))}
