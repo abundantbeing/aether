@@ -1,0 +1,18 @@
+name: aether
+version: "0.1.0"
+manifest_version: 2
+description: >-
+  Living themes for Hermes Desktop. Ask Hermes for any look ("a slow dithered sunset over the sea",
+  "a black hole, but gold") and it paints a full palette plus an animated scene behind the chat, or
+  pick one of eighteen scenes: auroras over still lakes, dawn over the edge of the world, a neon
+  city in the rain, Hermes in his own blue. Dither, braille, halftone, ascii and CRT finishes, a
+  readability floor on every theme, and motion that reacts to you and sleeps when you are away.
+author: abundantbeing
+license: MIT
+homepage: https://github.com/abundantbeing/hermes-aether
+requires_hermes: ">=0.23.1"
+tags: [desktop, theme, appearance, backdrop, animation]
+provides_tools:
+  - aether_theme
+  - aether_gallery
+provides_hooks: []
