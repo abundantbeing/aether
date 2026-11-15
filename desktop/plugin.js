@@ -2,7 +2,7 @@
 import * as sdk from "@hermes/plugin-sdk";
 
 // desktop-src/plugin.jsx
-import { useEffect as useEffect2 } from "react";
+import { useEffect as useEffect3 } from "react";
 
 // desktop-src/shader.js
 var VERTEX = `
@@ -3870,6 +3870,10 @@ var $settings = sdk.atom({ ...DEFAULT_SETTINGS });
 var $themeName = sdk.atom("");
 var $paintedName = sdk.atom("");
 var $agentHalf = sdk.atom(null);
+var $editing = sdk.atom("");
+function closeEditor() {
+  $editing.set("");
+}
 var $catalog = sdk.computed($saved, (saved) => ({ ...presetMap, ...saved }));
 var $active = sdk.computed([$catalog, $paintedName], (catalog, name) => catalog[name] || null);
 var storage = null;
@@ -4280,6 +4284,14 @@ async function deleteSaved(slug) {
   } catch {
   }
 }
+function previewColours(params) {
+  return sdk.host.request(`plugin.${PLUGIN_ID}.preview`, params);
+}
+async function saveColours(params) {
+  const out = await sdk.host.request(`plugin.${PLUGIN_ID}.save`, params);
+  if (out && out.ok && out.record) applyRecord(out.record, { origin: "editor" });
+  return out;
+}
 function handleEvent(event) {
   const payload = event && event.payload || {};
   if (payload.action === "apply" && payload.record) applyRecord(payload.record, { origin: payload.origin || "agent" });
@@ -4549,6 +4561,31 @@ var CSS2 = `
 .ae-chip:hover { color: var(--ui-text-primary); }
 .ae-pop { display: flex; flex-direction: column; gap: 10px; width: 260px; padding: 4px; }
 .ae-pop-title { font-weight: 600; font-size: 0.8125rem; }
+.ae-ed { display: grid; grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr); gap: 18px; width: min(780px, 86vw); text-align: left; }
+.ae-ed-side { display: flex; flex-direction: column; gap: 10px; min-width: 0; }
+.ae-ed-side canvas { border-radius: 10px; box-shadow: inset 0 0 0 1px var(--ui-stroke-secondary); }
+.ae-ed-notes { display: flex; flex-direction: column; gap: 6px; min-height: 2.5em; }
+.ae-ed-note { font-size: 0.75rem; line-height: 1.45; color: var(--ui-text-secondary); padding: 6px 9px; border-radius: 8px;
+  background: var(--ui-bg-quaternary); }
+.ae-ed-note[data-tone="ok"], .ae-ed-note[data-tone="quiet"] { background: transparent; padding: 0; color: var(--ui-text-tertiary); }
+.ae-ed-note[data-tone="error"] { color: var(--ui-text-primary); box-shadow: inset 2px 0 0 var(--destructive, #cf222e); }
+.ae-ed-fields { display: flex; flex-direction: column; gap: 14px; min-width: 0; }
+.ae-ed-name { display: flex; flex-direction: column; gap: 6px; }
+.ae-ed-group { display: flex; flex-direction: column; gap: 6px; margin: 0; padding: 0; border: 0; min-width: 0; }
+.ae-ed-group > button { align-self: flex-start; }
+.ae-ed-legend { font-size: 0.6875rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em; color: var(--ui-text-tertiary); padding: 0; margin-bottom: 2px; }
+.ae-sw { display: grid; grid-template-columns: 28px minmax(0, 1fr) 92px 22px; align-items: center; gap: 8px; }
+.ae-sw-pick { width: 28px; height: 28px; padding: 0; border: 0; border-radius: 8px; cursor: pointer; background: transparent;
+  box-shadow: inset 0 0 0 1px var(--ui-stroke-secondary); }
+.ae-sw-pick::-webkit-color-swatch-wrapper { padding: 2px; }
+.ae-sw-pick::-webkit-color-swatch { border: 0; border-radius: 6px; }
+.ae-sw-pick:focus-visible, .ae-sw-x:focus-visible, .ae-act:focus-visible { outline: 2px solid var(--ui-accent); outline-offset: 2px; }
+.ae-sw-label { font-size: 0.8125rem; color: var(--ui-text-secondary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ae-sw-hex { font-family: var(--font-mono, ui-monospace, monospace); font-size: 0.75rem; }
+.ae-sw-x { grid-column: 4; width: 22px; height: 22px; border: 0; border-radius: 6px; cursor: pointer; display: inline-flex;
+  align-items: center; justify-content: center; background: transparent; color: var(--ui-text-tertiary); }
+.ae-sw-x:hover { color: var(--ui-text-primary); background: var(--ui-bg-quaternary); }
+@media (max-width: 720px) { .ae-ed { grid-template-columns: minmax(0, 1fr); } }
 @keyframes ae-breathe { 0%, 100% { opacity: 0.55; } 50% { opacity: 1; } }
 .ae-chip .ae-dot[data-on] { animation: ae-breathe 3.2s ease-in-out infinite; }
 @media (prefers-reduced-motion: reduce) { .ae-card { transition: none; } .ae-chip .ae-dot[data-on] { animation: none; } }
@@ -4738,9 +4775,209 @@ function StatusChip() {
   ] });
 }
 
-// desktop-src/ui/gallery.jsx
-import { useMemo, useState as useState2 } from "react";
+// desktop-src/ui/editor.jsx
+import { useEffect as useEffect2, useMemo, useRef as useRef2, useState as useState2 } from "react";
 import { jsx as jsx6, jsxs as jsxs4 } from "react/jsx-runtime";
+var HEX = /^#[0-9a-f]{6}$/;
+var MAX_STOPS = 5;
+var MIN_STOPS = 2;
+function startingColours(record) {
+  const c = record.theme.colors;
+  return { background: c.background, accent: c.primary, foreground: c.foreground, stops: [...record.scene.colors] };
+}
+function defaultLabel(record) {
+  return record.source === "preset" ? `${record.label} (custom)` : record.label;
+}
+function asHex(text) {
+  const raw = String(text || "").trim().toLowerCase();
+  const hex = raw.startsWith("#") ? raw : `#${raw}`;
+  return HEX.test(hex) ? hex : null;
+}
+function Swatch({ disabled, label, onChange, onRemove, value }) {
+  const [text, setText] = useState2(value);
+  useEffect2(() => setText(value), [value]);
+  return /* @__PURE__ */ jsxs4("div", { className: "ae-sw", children: [
+    /* @__PURE__ */ jsx6(
+      "input",
+      {
+        "aria-label": `${label}: pick a colour`,
+        className: "ae-sw-pick",
+        disabled,
+        onChange: (event) => onChange(event.target.value.toLowerCase()),
+        type: "color",
+        value
+      }
+    ),
+    /* @__PURE__ */ jsx6("span", { className: "ae-sw-label", children: label }),
+    /* @__PURE__ */ jsx6(
+      sdk.Input,
+      {
+        "aria-label": `${label}: hex value`,
+        className: "ae-sw-hex",
+        disabled,
+        onBlur: () => setText(value),
+        onChange: (event) => {
+          setText(event.target.value);
+          const hex = asHex(event.target.value);
+          if (hex) onChange(hex);
+        },
+        spellCheck: false,
+        value: text
+      }
+    ),
+    onRemove ? /* @__PURE__ */ jsx6("button", { "aria-label": `Remove ${label.toLowerCase()}`, className: "ae-sw-x", disabled, onClick: onRemove, type: "button", children: /* @__PURE__ */ jsx6(sdk.Codicon, { name: "close" }) }) : null
+  ] });
+}
+function Editor({ base }) {
+  const agent = sdk.useValue($agentHalf);
+  const start = useMemo(() => startingColours(base), [base]);
+  const [colours, setColours] = useState2(start);
+  const [textChosen, setTextChosen] = useState2(false);
+  const [label, setLabel] = useState2(() => defaultLabel(base));
+  const [result, setResult] = useState2(null);
+  const [status, setStatus] = useState2("checking");
+  const [error, setError] = useState2("");
+  const ticket = useRef2(0);
+  const params = useMemo(() => {
+    const out = { base: base.slug, background: colours.background, accent: colours.accent, scene_colors: colours.stops };
+    if (label.trim()) out.label = label.trim();
+    if (textChosen) out.foreground = colours.foreground;
+    return out;
+  }, [base, colours, label, textChosen]);
+  const key = JSON.stringify(params);
+  const readOnly = status === "unavailable" || agent === false;
+  useEffect2(() => {
+    if (agent === false) {
+      setStatus("unavailable");
+      return void 0;
+    }
+    const mine = ++ticket.current;
+    setStatus((current) => current === "unavailable" ? current : "checking");
+    return later(async () => {
+      try {
+        const out = await previewColours(params);
+        if (mine !== ticket.current) return;
+        if (out && out.ok) {
+          setResult({ key, ...out });
+          setError("");
+          setStatus("ready");
+        } else {
+          setError(out && out.error || "These colours could not be checked.");
+          setStatus("error");
+        }
+      } catch {
+        if (mine === ticket.current) setStatus("unavailable");
+      }
+    }, 220);
+  }, [agent, key]);
+  const fresh = result && result.key === key ? result.record : null;
+  const draft = useMemo(() => {
+    if (fresh) return fresh;
+    const known = result && result.record || base;
+    const colors = { ...known.theme.colors, background: colours.background, primary: colours.accent };
+    if (textChosen) colors.foreground = colours.foreground;
+    return { ...base, theme: { ...base.theme, colors }, scene: { ...base.scene, glass: known.scene.glass, colors: colours.stops } };
+  }, [fresh, result, base, colours, textChosen]);
+  const set = (patch) => setColours((current) => ({ ...current, ...patch }));
+  const setStop = (index, hex) => set({ stops: colours.stops.map((stop, i) => i === index ? hex : stop) });
+  const removeStop = (index) => set({ stops: colours.stops.filter((_, i) => i !== index) });
+  const addStop = () => set({ stops: [...colours.stops, colours.stops[colours.stops.length - 1]] });
+  const reset = () => {
+    setColours(start);
+    setTextChosen(false);
+    setLabel(defaultLabel(base));
+  };
+  const save = async () => {
+    setStatus("saving");
+    try {
+      const out = await saveColours(params);
+      if (out && out.ok) closeEditor();
+      else {
+        setError(out && out.error || "The theme could not be saved.");
+        setStatus("error");
+      }
+    } catch {
+      setStatus("unavailable");
+    }
+  };
+  const notes = fresh && result.notes || [];
+  const changed = key !== JSON.stringify({ base: base.slug, background: start.background, accent: start.accent, scene_colors: start.stops, label: defaultLabel(base) });
+  const updating = Boolean(fresh && result.replaces);
+  const banner = readOnly ? "Saving colours needs the Agent half of Aether on this profile (Capabilities, Plugins, Aether). Turn it on to edit and save." : null;
+  return /* @__PURE__ */ jsxs4(sdk.DialogContent, { banner, bannerTone: "warn", fitContent: true, children: [
+    /* @__PURE__ */ jsx6(Styles, {}),
+    /* @__PURE__ */ jsxs4(sdk.DialogHeader, { children: [
+      /* @__PURE__ */ jsxs4(sdk.DialogTitle, { children: [
+        "Colours: ",
+        base.label
+      ] }),
+      /* @__PURE__ */ jsx6(sdk.DialogDescription, { children: "Change any colour. Aether keeps text readable over the moving scene and tells you what it had to move." })
+    ] }),
+    /* @__PURE__ */ jsxs4("div", { className: "ae-ed", children: [
+      /* @__PURE__ */ jsxs4("div", { className: "ae-ed-side", children: [
+        /* @__PURE__ */ jsx6(ScenePreview, { animate: !readOnly, record: draft }),
+        /* @__PURE__ */ jsx6("div", { "aria-live": "polite", className: "ae-ed-notes", children: status === "error" ? /* @__PURE__ */ jsx6("div", { className: "ae-ed-note", "data-tone": "error", role: "alert", children: error }) : notes.length ? notes.map((note) => /* @__PURE__ */ jsx6("div", { className: "ae-ed-note", children: note }, note)) : status === "ready" ? /* @__PURE__ */ jsx6("div", { className: "ae-ed-note", "data-tone": "ok", children: "Readable as it is: nothing had to move." }) : status === "checking" && !readOnly ? /* @__PURE__ */ jsx6("div", { className: "ae-ed-note", "data-tone": "quiet", children: "Checking readability..." }) : null })
+      ] }),
+      /* @__PURE__ */ jsxs4("div", { className: "ae-ed-fields", children: [
+        /* @__PURE__ */ jsxs4("label", { className: "ae-ed-name", children: [
+          /* @__PURE__ */ jsx6("span", { className: "ae-ed-legend", children: "Name" }),
+          /* @__PURE__ */ jsx6(sdk.Input, { disabled: readOnly, maxLength: 40, onChange: (event) => setLabel(event.target.value), value: label })
+        ] }),
+        /* @__PURE__ */ jsxs4("fieldset", { className: "ae-ed-group", disabled: readOnly, children: [
+          /* @__PURE__ */ jsx6("legend", { className: "ae-ed-legend", children: "Theme" }),
+          /* @__PURE__ */ jsx6(Swatch, { disabled: readOnly, label: "Background", onChange: (hex) => set({ background: hex }), value: colours.background }),
+          /* @__PURE__ */ jsx6(Swatch, { disabled: readOnly, label: "Accent", onChange: (hex) => set({ accent: hex }), value: colours.accent }),
+          /* @__PURE__ */ jsx6(
+            Swatch,
+            {
+              disabled: readOnly,
+              label: textChosen ? "Text" : "Text (automatic)",
+              onChange: (hex) => {
+                setTextChosen(true);
+                set({ foreground: hex });
+              },
+              value: fresh && fresh.theme.colors.foreground || colours.foreground
+            }
+          )
+        ] }),
+        /* @__PURE__ */ jsxs4("fieldset", { className: "ae-ed-group", disabled: readOnly, children: [
+          /* @__PURE__ */ jsx6("legend", { className: "ae-ed-legend", children: "Scene, calm to bright" }),
+          colours.stops.map((stop, i) => /* @__PURE__ */ jsx6(
+            Swatch,
+            {
+              disabled: readOnly,
+              label: `Scene colour ${i + 1}`,
+              onChange: (hex) => setStop(i, hex),
+              onRemove: colours.stops.length > MIN_STOPS ? () => removeStop(i) : null,
+              value: stop
+            },
+            i
+          )),
+          colours.stops.length < MAX_STOPS ? /* @__PURE__ */ jsxs4(sdk.Button, { disabled: readOnly, onClick: addStop, size: "sm", variant: "ghost", children: [
+            /* @__PURE__ */ jsx6(sdk.Codicon, { name: "add" }),
+            " Add a scene colour"
+          ] }) : null
+        ] })
+      ] })
+    ] }),
+    /* @__PURE__ */ jsxs4(sdk.DialogFooter, { children: [
+      /* @__PURE__ */ jsx6(sdk.Button, { disabled: readOnly || !changed, onClick: reset, variant: "ghost", children: "Reset" }),
+      /* @__PURE__ */ jsx6(sdk.Button, { onClick: () => closeEditor(), variant: "secondary", children: "Cancel" }),
+      /* @__PURE__ */ jsx6(sdk.Button, { disabled: readOnly || status === "saving" || status === "error", onClick: save, children: status === "saving" ? "Saving..." : updating ? "Update and apply" : "Save and apply" })
+    ] })
+  ] });
+}
+function EditorHost() {
+  const slug = sdk.useValue($editing);
+  const catalog = sdk.useValue($catalog);
+  const base = slug ? catalog[slug] : null;
+  if (!sdk.Dialog || !sdk.DialogContent) return null;
+  return /* @__PURE__ */ jsx6(sdk.Dialog, { onOpenChange: (open) => open ? null : closeEditor(), open: Boolean(base), children: base ? /* @__PURE__ */ jsx6(Editor, { base }, base.slug) : null });
+}
+
+// desktop-src/ui/gallery.jsx
+import { useMemo as useMemo2, useState as useState3 } from "react";
+import { jsx as jsx7, jsxs as jsxs5 } from "react/jsx-runtime";
 var IDEAS = [
   "a slow dithered sunset over the sea",
   "my terminal, but amber and raining",
@@ -4769,9 +5006,9 @@ function askHermes(text) {
   return true;
 }
 function ThemeCard({ record, active, onDelete }) {
-  const [hover, setHover] = useState2(false);
+  const [hover, setHover] = useState3(false);
   const scene = record.scene;
-  return /* @__PURE__ */ jsxs4(
+  return /* @__PURE__ */ jsxs5(
     "button",
     {
       "aria-pressed": active,
@@ -4785,20 +5022,20 @@ function ThemeCard({ record, active, onDelete }) {
       title: `Apply ${record.label}`,
       type: "button",
       children: [
-        /* @__PURE__ */ jsx6(ScenePreview, { animate: hover || active, record }),
-        /* @__PURE__ */ jsxs4("div", { className: "ae-card-body", children: [
-          /* @__PURE__ */ jsxs4("div", { className: "ae-card-title", children: [
-            sdk.DecodeText ? /* @__PURE__ */ jsx6(sdk.DecodeText, { active: hover, text: record.label }, hover ? "on" : "off") : /* @__PURE__ */ jsx6("span", { children: record.label }),
-            active ? /* @__PURE__ */ jsx6("span", { className: "ae-on", children: "On" }) : null
+        /* @__PURE__ */ jsx7(ScenePreview, { animate: hover || active, record }),
+        /* @__PURE__ */ jsxs5("div", { className: "ae-card-body", children: [
+          /* @__PURE__ */ jsxs5("div", { className: "ae-card-title", children: [
+            sdk.DecodeText ? /* @__PURE__ */ jsx7(sdk.DecodeText, { active: hover, text: record.label }, hover ? "on" : "off") : /* @__PURE__ */ jsx7("span", { children: record.label }),
+            active ? /* @__PURE__ */ jsx7("span", { className: "ae-on", children: "On" }) : null
           ] }),
-          /* @__PURE__ */ jsx6("div", { className: "ae-card-desc", children: record.description }),
-          /* @__PURE__ */ jsxs4("div", { className: "ae-tags", children: [
-            /* @__PURE__ */ jsx6("span", { className: "ae-tag", children: scene.engine }),
-            scene.finish.style !== "none" ? /* @__PURE__ */ jsx6("span", { className: "ae-tag", children: scene.finish.style }) : null,
-            /* @__PURE__ */ jsx6("span", { className: "ae-tag", children: record.appearance })
+          /* @__PURE__ */ jsx7("div", { className: "ae-card-desc", children: record.description }),
+          /* @__PURE__ */ jsxs5("div", { className: "ae-tags", children: [
+            /* @__PURE__ */ jsx7("span", { className: "ae-tag", children: scene.engine }),
+            scene.finish.style !== "none" ? /* @__PURE__ */ jsx7("span", { className: "ae-tag", children: scene.finish.style }) : null,
+            /* @__PURE__ */ jsx7("span", { className: "ae-tag", children: record.appearance })
           ] })
         ] }),
-        onDelete ? /* @__PURE__ */ jsx6(
+        onDelete ? /* @__PURE__ */ jsx7(
           "span",
           {
             "aria-label": `Delete ${record.label}`,
@@ -4809,7 +5046,7 @@ function ThemeCard({ record, active, onDelete }) {
             },
             role: "button",
             tabIndex: -1,
-            children: /* @__PURE__ */ jsx6(sdk.Codicon, { name: "close" })
+            children: /* @__PURE__ */ jsx7(sdk.Codicon, { name: "close" })
           }
         ) : null
       ]
@@ -4817,14 +5054,14 @@ function ThemeCard({ record, active, onDelete }) {
   );
 }
 function Ask() {
-  const [text, setText] = useState2("");
+  const [text, setText] = useState3("");
   const agent = sdk.useValue($agentHalf);
   const submit = (value) => {
     if (askHermes(value)) setText("");
   };
-  return /* @__PURE__ */ jsxs4("div", { className: "ae-ask", children: [
-    /* @__PURE__ */ jsxs4("div", { className: "ae-ask-row", children: [
-      /* @__PURE__ */ jsx6(
+  return /* @__PURE__ */ jsxs5("div", { className: "ae-ask", children: [
+    /* @__PURE__ */ jsxs5("div", { className: "ae-ask-row", children: [
+      /* @__PURE__ */ jsx7(
         sdk.Textarea,
         {
           "aria-label": "Describe a theme",
@@ -4840,10 +5077,10 @@ function Ask() {
           value: text
         }
       ),
-      /* @__PURE__ */ jsx6(sdk.Button, { disabled: !text.trim(), onClick: () => submit(text), children: "Make it" })
+      /* @__PURE__ */ jsx7(sdk.Button, { disabled: !text.trim(), onClick: () => submit(text), children: "Make it" })
     ] }),
-    /* @__PURE__ */ jsx6("div", { className: "ae-ideas", children: IDEAS.map((idea) => /* @__PURE__ */ jsx6("button", { className: "ae-idea", onClick: () => submit(idea), type: "button", children: idea }, idea)) }),
-    agent === false ? /* @__PURE__ */ jsx6("div", { className: "ae-empty", children: "The agent half is not enabled for this profile, so Hermes cannot paint new themes yet. Presets work either way." }) : null
+    /* @__PURE__ */ jsx7("div", { className: "ae-ideas", children: IDEAS.map((idea) => /* @__PURE__ */ jsx7("button", { className: "ae-idea", onClick: () => submit(idea), type: "button", children: idea }, idea)) }),
+    agent === false ? /* @__PURE__ */ jsx7("div", { className: "ae-empty", children: "The agent half is not enabled for this profile, so Hermes cannot paint new themes yet. Presets work either way." }) : null
   ] });
 }
 function Gallery() {
@@ -4852,33 +5089,33 @@ function Gallery() {
   const painted = sdk.useValue($paintedName);
   const agent = sdk.useValue($agentHalf);
   const active = painted || committed;
-  const mine = useMemo(() => Object.values(saved).sort((a, b) => (b.updated_at || 0) - (a.updated_at || 0)), [saved]);
+  const mine = useMemo2(() => Object.values(saved).sort((a, b) => (b.updated_at || 0) - (a.updated_at || 0)), [saved]);
   const onDelete = (record) => deleteSaved(record.slug);
-  return /* @__PURE__ */ jsxs4("div", { className: "ae-page", children: [
-    /* @__PURE__ */ jsx6(Styles, {}),
-    /* @__PURE__ */ jsxs4("div", { className: "ae-wrap", children: [
-      /* @__PURE__ */ jsxs4("div", { className: "ae-head", children: [
-        /* @__PURE__ */ jsxs4("div", { children: [
-          /* @__PURE__ */ jsx6("h1", { className: "ae-title", children: "Aether" }),
-          /* @__PURE__ */ jsx6("p", { className: "ae-sub", children: "Living themes for Hermes. Pick one, or describe the look you want and Hermes paints a palette and a moving scene behind your chats." })
+  return /* @__PURE__ */ jsxs5("div", { className: "ae-page", children: [
+    /* @__PURE__ */ jsx7(Styles, {}),
+    /* @__PURE__ */ jsxs5("div", { className: "ae-wrap", children: [
+      /* @__PURE__ */ jsxs5("div", { className: "ae-head", children: [
+        /* @__PURE__ */ jsxs5("div", { children: [
+          /* @__PURE__ */ jsx7("h1", { className: "ae-title", children: "Aether" }),
+          /* @__PURE__ */ jsx7("p", { className: "ae-sub", children: "Living themes for Hermes. Pick one, or describe the look you want and Hermes paints a palette and a moving scene behind your chats." })
         ] }),
-        /* @__PURE__ */ jsxs4("span", { className: "ae-status", children: [
-          /* @__PURE__ */ jsx6("span", { className: "ae-dot", "data-on": agent ? "" : void 0 }),
+        /* @__PURE__ */ jsxs5("span", { className: "ae-status", children: [
+          /* @__PURE__ */ jsx7("span", { className: "ae-dot", "data-on": agent ? "" : void 0 }),
           agent ? "Hermes can paint themes" : agent === false ? "Presets only on this profile" : "Connecting"
         ] })
       ] }),
-      /* @__PURE__ */ jsx6(Ask, {}),
-      /* @__PURE__ */ jsxs4("section", { className: "ae-section", children: [
-        /* @__PURE__ */ jsx6("div", { className: "ae-section-head", children: /* @__PURE__ */ jsx6("h2", { className: "ae-h2", children: "Made by Hermes" }) }),
-        mine.length ? /* @__PURE__ */ jsx6("div", { className: "ae-grid", children: mine.map((record) => /* @__PURE__ */ jsx6(ThemeCard, { active: active === record.slug, onDelete, record }, record.slug)) }) : /* @__PURE__ */ jsx6("div", { className: "ae-empty", children: "Nothing yet. Describe a theme above, or just tell Hermes what you want in any chat." })
+      /* @__PURE__ */ jsx7(Ask, {}),
+      /* @__PURE__ */ jsxs5("section", { className: "ae-section", children: [
+        /* @__PURE__ */ jsx7("div", { className: "ae-section-head", children: /* @__PURE__ */ jsx7("h2", { className: "ae-h2", children: "Made by Hermes" }) }),
+        mine.length ? /* @__PURE__ */ jsx7("div", { className: "ae-grid", children: mine.map((record) => /* @__PURE__ */ jsx7(ThemeCard, { active: active === record.slug, onDelete, record }, record.slug)) }) : /* @__PURE__ */ jsx7("div", { className: "ae-empty", children: "Nothing yet. Describe a theme above, or just tell Hermes what you want in any chat." })
       ] }),
-      /* @__PURE__ */ jsxs4("section", { className: "ae-section", children: [
-        /* @__PURE__ */ jsx6("div", { className: "ae-section-head", children: /* @__PURE__ */ jsx6("h2", { className: "ae-h2", children: "Presets" }) }),
-        /* @__PURE__ */ jsx6("div", { className: "ae-grid", children: PRESETS.map((record) => /* @__PURE__ */ jsx6(ThemeCard, { active: active === record.slug, record }, record.slug)) })
+      /* @__PURE__ */ jsxs5("section", { className: "ae-section", children: [
+        /* @__PURE__ */ jsx7("div", { className: "ae-section-head", children: /* @__PURE__ */ jsx7("h2", { className: "ae-h2", children: "Presets" }) }),
+        /* @__PURE__ */ jsx7("div", { className: "ae-grid", children: PRESETS.map((record) => /* @__PURE__ */ jsx7(ThemeCard, { active: active === record.slug, record }, record.slug)) })
       ] }),
-      /* @__PURE__ */ jsxs4("div", { className: "ae-foot", children: [
-        /* @__PURE__ */ jsx6(sdk.Button, { onClick: () => turnOff(), size: "sm", variant: "secondary", children: "Turn the backdrop off" }),
-        /* @__PURE__ */ jsx6(
+      /* @__PURE__ */ jsxs5("div", { className: "ae-foot", children: [
+        /* @__PURE__ */ jsx7(sdk.Button, { onClick: () => turnOff(), size: "sm", variant: "secondary", children: "Turn the backdrop off" }),
+        /* @__PURE__ */ jsx7(
           sdk.Button,
           {
             onClick: () => sdk.host.navigate(sdk.pluginSettingsHref ? sdk.pluginSettingsHref("aether") : "/settings"),
@@ -4887,14 +5124,14 @@ function Gallery() {
             children: "Motion settings"
           }
         ),
-        /* @__PURE__ */ jsx6("span", { children: "Motion pauses while Hermes is hidden and follows your system's reduced-motion setting." })
+        /* @__PURE__ */ jsx7("span", { children: "Motion pauses while Hermes is hidden and follows your system's reduced-motion setting." })
       ] })
     ] })
   ] });
 }
 
 // desktop-src/plugin.jsx
-import { jsx as jsx7, jsxs as jsxs5 } from "react/jsx-runtime";
+import { jsx as jsx8, jsxs as jsxs6 } from "react/jsx-runtime";
 var ROUTE = "/aether";
 var baseName = (name) => String(name || "").replace(/-(light|dark)$/, "");
 function BackdropHost() {
@@ -4902,34 +5139,34 @@ function BackdropHost() {
   const active = sdk.useValue($active);
   const settings = sdk.useValue($settings);
   const painted = baseName(theme && theme.name);
-  useEffect2(() => {
+  useEffect3(() => {
     $themeName.set(themeName);
   }, [themeName]);
-  useEffect2(() => {
+  useEffect3(() => {
     $paintedName.set(painted);
   }, [painted]);
-  useEffect2(() => {
+  useEffect3(() => {
     if (active) backdrop.show(active, settings);
     else backdrop.hide();
   }, [active, settings]);
-  return null;
+  return /* @__PURE__ */ jsx8(EditorHost, {});
 }
 function AppearanceCard() {
   const active = sdk.useValue($active);
   const picks = PRESETS.slice(0, 4);
-  return /* @__PURE__ */ jsxs5("div", { style: { display: "flex", flexDirection: "column", gap: 10, padding: "12px 0" }, children: [
-    /* @__PURE__ */ jsx7(Styles, {}),
-    /* @__PURE__ */ jsxs5("div", { style: { display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 12 }, children: [
-      /* @__PURE__ */ jsxs5("div", { children: [
-        /* @__PURE__ */ jsx7("div", { style: { fontWeight: 600, fontSize: "0.875rem" }, children: "Living themes" }),
-        /* @__PURE__ */ jsxs5("div", { style: { fontSize: "0.75rem", color: "var(--ui-text-secondary)" }, children: [
+  return /* @__PURE__ */ jsxs6("div", { style: { display: "flex", flexDirection: "column", gap: 10, padding: "12px 0" }, children: [
+    /* @__PURE__ */ jsx8(Styles, {}),
+    /* @__PURE__ */ jsxs6("div", { style: { display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 12 }, children: [
+      /* @__PURE__ */ jsxs6("div", { children: [
+        /* @__PURE__ */ jsx8("div", { style: { fontWeight: 600, fontSize: "0.875rem" }, children: "Living themes" }),
+        /* @__PURE__ */ jsxs6("div", { style: { fontSize: "0.75rem", color: "var(--ui-text-secondary)" }, children: [
           active ? `${active.label} is on. ` : "",
           "Animated scenes from Aether, or ask Hermes to paint your own."
         ] })
       ] }),
-      /* @__PURE__ */ jsx7(sdk.Button, { onClick: () => sdk.host.navigate(ROUTE), size: "sm", variant: "secondary", children: "Open gallery" })
+      /* @__PURE__ */ jsx8(sdk.Button, { onClick: () => sdk.host.navigate(ROUTE), size: "sm", variant: "secondary", children: "Open gallery" })
     ] }),
-    /* @__PURE__ */ jsx7("div", { style: { display: "grid", gridTemplateColumns: "repeat(4, minmax(0, 1fr))", gap: 10 }, children: picks.map((record) => /* @__PURE__ */ jsxs5(
+    /* @__PURE__ */ jsx8("div", { style: { display: "grid", gridTemplateColumns: "repeat(4, minmax(0, 1fr))", gap: 10 }, children: picks.map((record) => /* @__PURE__ */ jsxs6(
       "button",
       {
         className: "ae-card",
@@ -4938,15 +5175,15 @@ function AppearanceCard() {
         title: record.label,
         type: "button",
         children: [
-          /* @__PURE__ */ jsx7(ScenePreview, { mock: false, record }),
-          /* @__PURE__ */ jsx7("div", { className: "ae-card-body", children: /* @__PURE__ */ jsx7("div", { className: "ae-card-title", children: record.label }) })
+          /* @__PURE__ */ jsx8(ScenePreview, { mock: false, record }),
+          /* @__PURE__ */ jsx8("div", { className: "ae-card-body", children: /* @__PURE__ */ jsx8("div", { className: "ae-card-title", children: record.label }) })
         ]
       },
       record.slug
     )) }),
-    active ? /* @__PURE__ */ jsxs5("div", { style: { display: "flex", alignItems: "center", gap: 10 }, children: [
-      /* @__PURE__ */ jsx7("span", { style: { fontSize: "0.75rem", color: "var(--ui-text-tertiary)" }, children: "Motion" }),
-      /* @__PURE__ */ jsx7(MotionControl, { compact: true })
+    active ? /* @__PURE__ */ jsxs6("div", { style: { display: "flex", alignItems: "center", gap: 10 }, children: [
+      /* @__PURE__ */ jsx8("span", { style: { fontSize: "0.75rem", color: "var(--ui-text-tertiary)" }, children: "Motion" }),
+      /* @__PURE__ */ jsx8(MotionControl, { compact: true })
     ] }) : null
   ] });
 }
@@ -4985,22 +5222,22 @@ var plugin_default = {
     registerThemes($catalog.get());
     const unCatalog = $catalog.subscribe((catalog) => registerThemes(catalog));
     ctx.onDispose(unCatalog);
-    ctx.register({ id: "backdrop-host", area: sdk.TITLEBAR_AREAS.center, render: () => /* @__PURE__ */ jsx7(BackdropHost, {}) });
-    ctx.register({ id: "page", area: sdk.ROUTES_AREA, data: { path: ROUTE }, render: () => /* @__PURE__ */ jsx7(Gallery, {}) });
+    ctx.register({ id: "backdrop-host", area: sdk.TITLEBAR_AREAS.center, render: () => /* @__PURE__ */ jsx8(BackdropHost, {}) });
+    ctx.register({ id: "page", area: sdk.ROUTES_AREA, data: { path: ROUTE }, render: () => /* @__PURE__ */ jsx8(Gallery, {}) });
     ctx.registerMany(paletteCommands());
-    ctx.register({ id: "chip", area: sdk.STATUSBAR_AREAS.right, order: 140, render: () => /* @__PURE__ */ jsx7(StatusChip, {}) });
+    ctx.register({ id: "chip", area: sdk.STATUSBAR_AREAS.right, order: 140, render: () => /* @__PURE__ */ jsx8(StatusChip, {}) });
     if (sdk.APPEARANCE_AREAS && sdk.APPEARANCE_AREAS.extra) {
-      ctx.register({ id: "appearance", area: sdk.APPEARANCE_AREAS.extra, render: () => /* @__PURE__ */ jsx7(AppearanceCard, {}) });
+      ctx.register({ id: "appearance", area: sdk.APPEARANCE_AREAS.extra, render: () => /* @__PURE__ */ jsx8(AppearanceCard, {}) });
     }
     if (typeof sdk.TRANSCRIPT_DIRECTIVE_AREA === "string") {
       ctx.register({
         id: "theme-card",
         area: sdk.TRANSCRIPT_DIRECTIVE_AREA,
-        data: { name: "aether-theme", render: (props) => /* @__PURE__ */ jsx7(ThemeCardDirective, { ...props }) }
+        data: { name: "aether-theme", render: (props) => /* @__PURE__ */ jsx8(ThemeCardDirective, { ...props }) }
       });
     }
     if (ctx.registerSettingsPage) {
-      ctx.registerSettingsPage({ id: "settings", title: "Aether", icon: "sparkle", render: () => /* @__PURE__ */ jsx7(SettingsPage, {}) });
+      ctx.registerSettingsPage({ id: "settings", title: "Aether", icon: "sparkle", render: () => /* @__PURE__ */ jsx8(SettingsPage, {}) });
     }
     wireSync(ctx);
     sync();

@@ -5,7 +5,7 @@
 // - a backdrop host in the titleBar.center slot, the SDK's permanent mount point, which follows the
 //   painted theme: an Aether theme paints its scene behind the window, any other theme removes it;
 // - the /aether gallery page, a Settings > Plugins page, palette commands, an Appearance card,
-//   a status-bar chip while a scene is on, and the ::aether-theme transcript card;
+//   a status-bar chip while a scene is on, the ::aether-theme transcript card and a colour editor;
 // - the link to the agent half: plugin.aether.* RPC and the plugin.aether.theme session event.
 
 import { sdk } from './sdk.js'
@@ -25,6 +25,7 @@ import {
 import { applyRecord, bindSync, registerThemes, sync, turnOff, wireSync } from './sync.js'
 import { ThemeCardDirective } from './ui/card.jsx'
 import { StatusChip } from './ui/chip.jsx'
+import { EditorHost } from './ui/editor.jsx'
 import { Gallery } from './ui/gallery.jsx'
 import { ScenePreview } from './ui/preview.jsx'
 import { MotionControl, SettingsPage } from './ui/settings.jsx'
@@ -54,7 +55,8 @@ function BackdropHost() {
     else backdrop.hide()
   }, [active, settings])
 
-  return null
+  // The colour editor lives here too: this slot is always mounted, and the dialog portals out of it.
+  return <EditorHost />
 }
 
 function AppearanceCard() {

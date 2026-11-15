@@ -106,6 +106,18 @@ export async function deleteSaved(slug) {
   }
 }
 
+/** The colour editor's choices, normalized by the agent half exactly as a save would be. Writes nothing. */
+export function previewColours(params) {
+  return sdk.host.request(`plugin.${PLUGIN_ID}.preview`, params)
+}
+
+/** Save the colour editor's theme for this profile, then apply it with the usual notice and Undo. */
+export async function saveColours(params) {
+  const out = await sdk.host.request(`plugin.${PLUGIN_ID}.save`, params)
+  if (out && out.ok && out.record) applyRecord(out.record, { origin: 'editor' })
+  return out
+}
+
 function handleEvent(event) {
   const payload = (event && event.payload) || {}
   if (payload.action === 'apply' && payload.record) applyRecord(payload.record, { origin: payload.origin || 'agent' })

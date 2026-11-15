@@ -50,6 +50,31 @@ export const CSS = `
 .ae-chip:hover { color: var(--ui-text-primary); }
 .ae-pop { display: flex; flex-direction: column; gap: 10px; width: 260px; padding: 4px; }
 .ae-pop-title { font-weight: 600; font-size: 0.8125rem; }
+.ae-ed { display: grid; grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr); gap: 18px; width: min(780px, 86vw); text-align: left; }
+.ae-ed-side { display: flex; flex-direction: column; gap: 10px; min-width: 0; }
+.ae-ed-side canvas { border-radius: 10px; box-shadow: inset 0 0 0 1px var(--ui-stroke-secondary); }
+.ae-ed-notes { display: flex; flex-direction: column; gap: 6px; min-height: 2.5em; }
+.ae-ed-note { font-size: 0.75rem; line-height: 1.45; color: var(--ui-text-secondary); padding: 6px 9px; border-radius: 8px;
+  background: var(--ui-bg-quaternary); }
+.ae-ed-note[data-tone="ok"], .ae-ed-note[data-tone="quiet"] { background: transparent; padding: 0; color: var(--ui-text-tertiary); }
+.ae-ed-note[data-tone="error"] { color: var(--ui-text-primary); box-shadow: inset 2px 0 0 var(--destructive, #cf222e); }
+.ae-ed-fields { display: flex; flex-direction: column; gap: 14px; min-width: 0; }
+.ae-ed-name { display: flex; flex-direction: column; gap: 6px; }
+.ae-ed-group { display: flex; flex-direction: column; gap: 6px; margin: 0; padding: 0; border: 0; min-width: 0; }
+.ae-ed-group > button { align-self: flex-start; }
+.ae-ed-legend { font-size: 0.6875rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em; color: var(--ui-text-tertiary); padding: 0; margin-bottom: 2px; }
+.ae-sw { display: grid; grid-template-columns: 28px minmax(0, 1fr) 92px 22px; align-items: center; gap: 8px; }
+.ae-sw-pick { width: 28px; height: 28px; padding: 0; border: 0; border-radius: 8px; cursor: pointer; background: transparent;
+  box-shadow: inset 0 0 0 1px var(--ui-stroke-secondary); }
+.ae-sw-pick::-webkit-color-swatch-wrapper { padding: 2px; }
+.ae-sw-pick::-webkit-color-swatch { border: 0; border-radius: 6px; }
+.ae-sw-pick:focus-visible, .ae-sw-x:focus-visible, .ae-act:focus-visible { outline: 2px solid var(--ui-accent); outline-offset: 2px; }
+.ae-sw-label { font-size: 0.8125rem; color: var(--ui-text-secondary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ae-sw-hex { font-family: var(--font-mono, ui-monospace, monospace); font-size: 0.75rem; }
+.ae-sw-x { grid-column: 4; width: 22px; height: 22px; border: 0; border-radius: 6px; cursor: pointer; display: inline-flex;
+  align-items: center; justify-content: center; background: transparent; color: var(--ui-text-tertiary); }
+.ae-sw-x:hover { color: var(--ui-text-primary); background: var(--ui-bg-quaternary); }
+@media (max-width: 720px) { .ae-ed { grid-template-columns: minmax(0, 1fr); } }
 @keyframes ae-breathe { 0%, 100% { opacity: 0.55; } 50% { opacity: 1; } }
 .ae-chip .ae-dot[data-on] { animation: ae-breathe 3.2s ease-in-out infinite; }
 @media (prefers-reduced-motion: reduce) { .ae-card { transition: none; } .ae-chip .ae-dot[data-on] { animation: none; } }

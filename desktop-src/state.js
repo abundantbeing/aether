@@ -32,6 +32,16 @@ export const $themeName = sdk.atom('')
 export const $paintedName = sdk.atom('')
 /** True once the agent half answered plugin.aether.state on this connection. */
 export const $agentHalf = sdk.atom(null)
+/** The slug whose colours the editor is open on, or '' when it is closed. */
+export const $editing = sdk.atom('')
+
+export function openEditor(slug) {
+  $editing.set(typeof slug === 'string' ? slug : '')
+}
+
+export function closeEditor() {
+  $editing.set('')
+}
 
 export const $catalog = sdk.computed($saved, saved => ({ ...presetMap, ...saved }))
 export const $active = sdk.computed([$catalog, $paintedName], (catalog, name) => catalog[name] || null)
