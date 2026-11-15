@@ -23,7 +23,7 @@ def _load_package():
         "aether_plugin", ROOT / "__init__.py", submodule_search_locations=[str(ROOT)])
     module = importlib.util.module_from_spec(spec)
     sys.modules["aether_plugin"] = module
-    for name in ("_svg", "_color", "_palette", "_spec", "_presets"):
+    for name in ("_svg", "_color", "_palette", "_spec", "_presets", "_base"):
         sub = importlib.util.spec_from_file_location(f"aether_plugin.{name}", ROOT / f"{name}.py")
         mod = importlib.util.module_from_spec(sub)
         sys.modules[f"aether_plugin.{name}"] = mod

@@ -13,6 +13,7 @@ from functools import lru_cache
 from typing import Any, Dict, List, Optional
 
 from . import _store as store
+from ._base import avoid_preset_names, compose
 from ._spec import ENGINES, FINISHES, FONTS, PATTERNS, SpecError, normalize, slugify
 
 logger = logging.getLogger(__name__)
@@ -30,13 +31,18 @@ THEME_SCHEMA: Dict[str, Any] = {
         "ascii finish. Use it whenever the user asks to change how Hermes looks, its background, colours, mood or vibe. "
         "Choose colours and a scene that match the request; the plugin derives the rest of the palette, "
         "keeps text readable and reports each adjustment, which you should mention briefly. Calm beats "
-        "busy: big slow shapes, a quiet centre. Reusing a name replaces that theme. For a hand-drawn "
+        "busy: big slow shapes, a quiet centre. Reusing a name replaces that theme. To change an existing "
+        "preset or saved theme (\"Selene, but gold\", \"my Sunset Dither, slower\"), pass base with only the "
+        "fields that change; everything else is kept. For a hand-drawn "
         f"scene (engine \"svg\") or design advice, load the skill {SKILL} first."
     ),
     "parameters": {
         "type": "object",
         "properties": {
             "name": {"type": "string", "description": "Short title shown in the theme picker, e.g. \"Sunset Dither\""},
+            "base": {"type": "string", "description": (
+                "Start from this preset or saved theme (name or slug): fields you give override it, the rest "
+                "(scene, finish, glass, speed, font) is kept. background and accent are optional with a base")},
             "description": {"type": "string", "description": "One line describing the look (optional)"},
             "background": {**_HEX, "description": "Base surface colour; a dark one makes a dark theme"},
             "accent": {**_HEX, "description": "Brand/accent colour for buttons, focus rings, highlights"},
@@ -80,7 +86,7 @@ THEME_SCHEMA: Dict[str, Any] = {
             "font": {"type": "string", "enum": list(FONTS), "description": "UI font (optional)"},
             "apply": {"type": "boolean", "description": "Apply now (default true); false only saves it"},
         },
-        "required": ["name", "background", "accent"],
+        "required": ["name"],
     },
 }
 
@@ -125,6 +131,22 @@ def resolve(name: str) -> Optional[Dict[str, Any]]:
         if record["slug"] in candidates or record["label"].lower() == wanted.lower():
             return record
     return None
+
+
+def _names() -> List[str]:
+    return [r["label"] for r in _catalog()]
+
+
+def build(args: Dict[str, Any], source: str) -> Dict[str, Any]:
+    """Normalize a call (optionally layered over ``args["base"]``) into a record. A preset's name is
+    never reused: the record takes "<name> (custom)" instead. Raises :class:`SpecError`."""
+    spec, notes, base = compose(args, resolve, _names)
+    spec = avoid_preset_names(spec, {r["slug"] for r in _presets()}, notes)
+    record = normalize(spec, source=source)
+    record["adjustments"] = notes + record["adjustments"]
+    if base is not None:
+        record["based_on"] = base["slug"]
+    return record
 
 
 def _brief(record: Dict[str, Any]) -> Dict[str, Any]:
@@ -173,7 +195,7 @@ class Runtime:
 
     def theme_tool(self, args: Dict[str, Any], **kwargs: Any) -> str:
         try:
-            record = normalize(args, source="agent")
+            record = build(args, source="agent")
         except SpecError as exc:
             return json.dumps({"ok": False, "error": str(exc), "hint": f"Fix the field and call again; see {SKILL}."})
         adjustments = record["adjustments"]
@@ -186,6 +208,8 @@ class Runtime:
             "scene": f"{record['scene']['engine']} / {record['scene']['finish']['style']}",
             "adjustments": adjustments,
         }
+        if record.get("based_on"):
+            result["based_on"] = record["based_on"]
         if args.get("apply", True) is False:
             result["status"] = "saved"
             result["note"] = "Saved without applying. It is listed in the theme picker and aether_gallery."
