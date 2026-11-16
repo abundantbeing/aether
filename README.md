@@ -1,9 +1,5 @@
-<p align="center">
-  <img src="docs/brand/icon.png" width="140" height="140" alt="The Aether mark: the letters AE over a dithered gold black hole in a gold ring">
-</p>
-
 <h1 align="center">
-  <img src="docs/brand/wordmark.png" width="560" alt="AETHER, each letter a window onto the Olympus scene in a different finish: dither, halftone, braille, CRT, ASCII and pixel">
+  <img src="docs/brand/cover.jpg" width="900" alt="Aether, a Hermes Desktop plugin: a dithered marble Hermes raising the caduceus before a gold Greek-key halo of Aether scenes, over the AETHER wordmark">
 </h1>
 
 <p align="center">
@@ -19,11 +15,6 @@
   <a href="#how-it-works"><img src="https://img.shields.io/badge/JavaScript-desktop_half-F7DF1E?style=flat&logo=javascript&logoColor=111" alt="JavaScript desktop half"></a>
   <a href="#the-scenes"><img src="https://img.shields.io/badge/WebGL-24_scene_engines-0000F2?style=flat" alt="24 WebGL scene engines"></a>
   <a href="https://github.com/abundantbeing"><img src="https://img.shields.io/badge/by-abundantbeing-181717?style=flat&logo=github&logoColor=white" alt="by abundantbeing on GitHub"></a>
-</p>
-
-<p align="center">
-  <a href="https://github.com/abundantbeing/aether/releases/download/v0.1.0/aether-launch.mp4"><img src="docs/media/aether-demo.webp" width="800" alt="From the Aether launch film: in Hermes Desktop, a gold black hole fades in behind the chat after asking for one; then a run of Aether scenes cut on the same circle (a black hole, a temple sun, a neon sun, a striped sun, a moon); then the same black hole in a new finish on every beat"></a><br>
-  <sub>From the launch film, recorded in real Hermes Desktop with a real model answering. Click for the full film with sound.</sub>
 </p>
 
 **Living themes for Hermes Desktop.** Tell Hermes the look you want ("a slow dithered sunset over the sea", "a black hole, but gold", "my terminal, amber and raining") and it paints a full palette plus an animated scene behind your chats. Or pick one of eighteen hand-tuned scenes: auroras over still lakes, dawn over the edge of the world, a neon city in the rain, a temple above the clouds in Nous blue and gold.
@@ -80,6 +71,14 @@ Screenshots show the actual plugin in Hermes Desktop on Windows, with a real mod
 Open it from the command palette (Aether: Open theme gallery), the status-bar chip, or Settings, Plugins, Aether. Every card is a live preview of the theme with a small mock of the app painted in its colours; hover to animate. The box at the top hands your description to Hermes in a fresh chat.
 
 ![The Aether gallery](docs/screenshots/gallery.png)
+
+### Themes from other creators
+
+Already have a theme plugin from another community creator, such as Borealis? Aether finds it on its own. It shows in the gallery under **From other creators** with its creator's name and their own picture, and one click switches to it: the creator's scene and styles run exactly as they made them. Hover a card to give it a new accent (buttons, links and highlights) or to open the creator's page. A recolour is saved only on your computer, sits next to the original as "by its creator, recoloured by you", and can be deleted at any time to go back. Recolouring other creators' themes is experimental.
+
+![Borealis by Adolanium in the gallery's From other creators section, beside a recolour of it in orange](docs/screenshots/other-creators.png)
+
+![Recolouring Borealis: Hermes's accent swatches, any colour, and a live preview of the whole window](docs/screenshots/recolour-other-creator.png)
 
 ### Balanced and Vivid
 
