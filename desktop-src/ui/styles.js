@@ -90,6 +90,10 @@ export const CSS = `
 .ae-fin-opt:focus-visible, .ae-fin-range:focus-visible { outline: 2px solid var(--ui-accent); outline-offset: 2px; }
 .ae-fin-row { display: grid; grid-template-columns: 56px minmax(0, 1fr) auto; align-items: center; gap: 8px; }
 .ae-fin-range { width: 100%; accent-color: var(--ui-accent); }
+.ae-select { font: inherit; font-size: 0.8125rem; padding: 6px 10px; border-radius: 8px; cursor: pointer; min-width: 9.5rem;
+  color: var(--ui-text-primary); background: var(--ui-bg-secondary, transparent); border: 1px solid var(--ui-stroke-secondary); }
+.ae-select:hover { background: var(--ui-bg-quaternary); }
+.ae-select:focus-visible { outline: 2px solid var(--ui-accent); outline-offset: 2px; }
 .ae-fin-val { font-family: var(--font-mono, ui-monospace, monospace); font-size: 0.75rem; color: var(--ui-text-tertiary); min-width: 3.2em; text-align: right; }
 @media (max-width: 720px) { .ae-ed { grid-template-columns: minmax(0, 1fr); } }
 @keyframes ae-breathe { 0%, 100% { opacity: 0.55; } 50% { opacity: 1; } }

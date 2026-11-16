@@ -1,5 +1,6 @@
 import { sdk } from '../sdk.js'
 
+import { POINTER_CHOICES, POINTER_MODES, pointerChoice } from '../pointer.js'
 import { $settings, reducedMotion, updateSettings } from '../state.js'
 import { Styles } from './styles.js'
 
@@ -45,6 +46,24 @@ export function StrengthControl() {
   )
 }
 
+function PointerSelect() {
+  const settings = sdk.useValue($settings)
+  const choice = pointerChoice(settings)
+  return (
+    <select
+      aria-label="Pointer reaction"
+      className="ae-select"
+      onChange={event => {
+        const id = event.target.value
+        updateSettings({ pointer: id !== 'off', pointerMode: id === 'off' ? settings.pointerMode || 'auto' : id })
+      }}
+      value={choice}
+    >
+      {POINTER_CHOICES.map(c => <option key={c.id} value={c.id}>{c.label}</option>)}
+    </select>
+  )
+}
+
 export function SettingsPage() {
   const settings = sdk.useValue($settings)
   const osReduced = reducedMotion()
@@ -82,11 +101,11 @@ export function SettingsPage() {
         label="Pause when Hermes is in the background"
         onChange={value => updateSettings({ pauseUnfocused: value })}
       />
-      <sdk.ToggleRow
-        checked={settings.pointer !== false}
-        description="The scene bends gently around your pointer while it moves, then settles when you stop to read."
-        label="React to the pointer"
-        onChange={value => updateSettings({ pointer: value })}
+      <sdk.ListRow
+        action={<PointerSelect />}
+        description={'How the scene reacts while your pointer moves, then settles when you stop to read. Auto picks one for each scene: ' +
+          POINTER_MODES.map(m => `${m.label.toLowerCase()} (${m.note})`).join(', ') + '. Off keeps the scene still.'}
+        title="Pointer reaction"
       />
       <sdk.ListRow
         action={

@@ -16,7 +16,8 @@ export const DEFAULT_SETTINGS = {
   motion: 'full', // full | calm | still
   followReducedMotion: true,
   pauseUnfocused: false,
-  pointer: true, // the scene bends a little around the pointer while it moves
+  pointer: true, // false keeps meaning Off (older saves)
+  pointerMode: 'auto', // auto | lens | ripples | well | repel | wind | off: how the scene reacts to the pointer
   strength: 'balanced', // calm | balanced | vivid: how much the glass veil covers the scene
   quality: 'balanced', // battery | balanced | high
   toast: true

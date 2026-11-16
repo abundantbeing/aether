@@ -15,6 +15,7 @@
 
 import { cssFallback, SceneRenderer, svgDataUrl, svgLooksSafe } from './renderer.js'
 import { makeLoop } from './loop.js'
+import { CLICK_SLOTS, modeIndex } from './pointer.js'
 import { effectiveMotion, QUALITY } from './state.js'
 
 const LAYER_ID = 'aether-backdrop'
@@ -91,14 +92,31 @@ class Backdrop {
     this.ctx = null
     this.offResize = null
     this.offPointer = null
+    this.offClick = null
+    this.mode = -1
+    this.clicksOn = false
     this.onResize = () => this.resize()
-    // Pointer lens: the target follows the mouse; the drawn lens eases toward it each frame, and its
-    // strength fades out after a short rest so a reader's still cursor never warps the page.
+    // Pointer reaction: the target follows the mouse; the drawn point eases toward it each frame, and
+    // its strength fades out after a short rest so a reader's still cursor never warps the page. The
+    // velocity is the eased point's own, so it dies as the point settles. Clicks go in a small ring
+    // buffer; each ring ages on its own and is spent after a couple of seconds.
     this.pointerTarget = { x: -1, y: -1, at: 0 }
-    this.pointerNow = { x: -1, y: -1, s: 0 }
+    this.pointerNow = { x: -1, y: -1, s: 0, vx: 0, vy: 0 }
+    this.clickX = new Float32Array(CLICK_SLOTS)
+    this.clickY = new Float32Array(CLICK_SLOTS)
+    this.clickAt = new Float64Array(CLICK_SLOTS)
+    this.clickNext = 0
+    this.onClick = event => {
+      if (!this.clicksOn) return
+      const i = this.clickNext
+      this.clickNext = (i + 1) % CLICK_SLOTS
+      this.clickX[i] = event.clientX
+      this.clickY[i] = event.clientY
+      this.clickAt[i] = performance.now()
+    }
     this.onPointer = event => {
       this.pointerTarget = { x: event.clientX, y: event.clientY, at: performance.now() }
-      if (this.pointerNow.x < 0) this.pointerNow = { x: event.clientX, y: event.clientY, s: 0 }
+      if (this.pointerNow.x < 0) this.pointerNow = { x: event.clientX, y: event.clientY, s: 0, vx: 0, vy: 0 }
     }
   }
 
@@ -124,6 +142,10 @@ class Backdrop {
     this.layer.style.setProperty('--aether-tint', `${Math.round(tint * 100)}%`)
     this.layer.style.setProperty('--aether-focus', `${Math.round(focus * 100)}%`)
     if (sceneChanged || !this.scene) this.buildScene(record.scene)
+    this.mode = modeIndex(settings, record.scene.engine)
+    // Battery keeps the cheapest path: the pointer reaction stays, click rings do not.
+    this.clicksOn = this.mode >= 0 && settings.quality !== 'battery'
+    if (!this.clicksOn) this.clickAt.fill(0)
     this.restartLoop()
   }
 
@@ -144,6 +166,7 @@ class Backdrop {
       document.body.prepend(this.layer)
       this.offResize = this.ctx ? this.ctx.addEventListener(window, 'resize', this.onResize) : null
       this.offPointer = this.ctx ? this.ctx.addEventListener(window, 'pointermove', this.onPointer, { passive: true }) : null
+      this.offClick = this.ctx ? this.ctx.addEventListener(window, 'pointerdown', this.onClick, { passive: true, capture: true }) : null
     }
     document.documentElement.setAttribute(ATTR, '')
   }
@@ -216,7 +239,7 @@ class Backdrop {
       const dt = this.lastNow ? Math.min(0.25, (now - this.lastNow) / 1000) : 0
       this.lastNow = now
       this.time += dt * speed
-      this.stepPointer()
+      this.stepPointer(dt)
       if (this.renderer && this.renderer.draw(this.time)) this.scene.setAttribute('data-ready', '')
     }, fps, Boolean(this.settings.pauseUnfocused))
   }
@@ -239,17 +262,34 @@ class Backdrop {
     else free()
   }
 
-  stepPointer() {
+  stepPointer(dt) {
     if (!this.renderer) return
     const now = performance.now()
-    const enabled = this.settings && this.settings.pointer !== false
+    const enabled = this.mode >= 0
     const fresh = now - this.pointerTarget.at < 2200
     const want = enabled && fresh && this.pointerTarget.x >= 0 ? 1 : 0
     const p = this.pointerNow
+    const w = window.innerWidth
+    const h = window.innerHeight
+    const px = p.x
+    const py = p.y
     p.x += (this.pointerTarget.x - p.x) * 0.14
     p.y += (this.pointerTarget.y - p.y) * 0.14
     p.s += (want - p.s) * (want ? 0.08 : 0.03)
-    this.renderer.setPointer(p.x, p.y, p.s < 0.002 ? 0 : p.s, window.innerWidth, window.innerHeight)
+    // Velocity in field units (screen heights) per second, eased and capped so a flick stays gentle.
+    if (dt > 0 && px >= 0) {
+      const k = Math.max(1, h) * dt
+      p.vx += ((p.x - px) / k - p.vx) * 0.3
+      p.vy += (-(p.y - py) / k - p.vy) * 0.3
+      const m = Math.hypot(p.vx, p.vy)
+      if (m > 1.4) { p.vx *= 1.4 / m; p.vy *= 1.4 / m }
+    }
+    this.renderer.setPointer(p.x, p.y, p.s < 0.002 ? 0 : p.s, w, h)
+    this.renderer.setInteraction(this.mode, p.vx, p.vy)
+    for (let i = 0; i < CLICK_SLOTS; i++) {
+      const at = this.clickAt[i]
+      this.renderer.setClick(i, this.clickX[i], this.clickY[i], at ? (now - at) / 1000 : 99, w, h)
+    }
   }
 
   disposeScene() {
@@ -267,9 +307,11 @@ class Backdrop {
     if (this.style) this.style.remove()
     if (this.offResize) this.offResize()
     if (this.offPointer) this.offPointer()
+    if (this.offClick) this.offClick()
     document.documentElement.removeAttribute(ATTR)
     this.offResize = null
     this.offPointer = null
+    this.offClick = null
     this.layer = null
     this.style = null
     this.record = null

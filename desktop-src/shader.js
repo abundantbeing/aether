@@ -4,6 +4,8 @@
 //
 // GLSL ES 1.00 (WebGL 1) so it runs on every GPU Electron supports, including software fallbacks.
 
+import { CLICK_LIFE } from './pointer.js'
+
 export const ENGINES = [
   'radiance', 'temple', 'summit', 'aurora', 'clouds', 'moonsea', 'dunes', 'blackhole', 'planet', 'skyline', 'sakura',
   'gradient', 'nebula', 'tides', 'starfield', 'embers', 'streaks', 'wings', 'horizon', 'rain', 'constellation',
@@ -30,6 +32,9 @@ uniform float u_glyphCount;
 uniform sampler2D u_tex;
 uniform float u_invert;
 uniform vec3 u_pointer;
+uniform float u_pmode;
+uniform vec2 u_pvel;
+uniform vec3 u_click0, u_click1, u_click2, u_click3;
 
 float hash(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453123); }
 
@@ -946,15 +951,72 @@ float engine(vec2 p, float t) {
 }
 
 const FIELD = `
+// One click ring: x, y and z = age in seconds. Returns the wave at p; dir is the outward direction.
+float clickRing(vec2 p, vec3 c, out vec2 dir) {
+  vec2 d = p - c.xy;
+  float r = length(d) + 0.0001;
+  dir = d / r;
+  float life = clamp(1.0 - c.z / ${CLICK_LIFE.toFixed(1)}, 0.0, 1.0);
+  float x = (r - c.z * 0.3) * 20.0;
+  return exp(-x * x) * sin(x * 3.0) * life * life / (1.0 + r * 4.0);
+}
+
+// The pointer reaction. Every mode only moves where the scene is sampled (p) and nudges its value
+// by a bounded amount; the caller clamps the value to 0..1 before the intensity, so no mode can
+// make any pixel brighter than the scene's own brightest colour. Strength z fades to zero when the
+// pointer rests, and click rings die on their own clock, so a still cursor changes nothing.
+void interact(inout vec2 p, inout float lift) {
+  if (u_pmode < -0.5) return;
+  vec2 d = p - u_pointer.xy;
+  float r2 = dot(d, d);
+  float s = u_pointer.z;
+  if (u_pmode < 0.5) {
+    float pull = exp(-r2 * 16.0) * s;
+    p -= d * pull * 0.32;
+    lift += pull * 0.05;
+  } else if (u_pmode < 1.5) {
+    float r = sqrt(r2);
+    float wake = sin(r * 46.0 - u_time * 5.0) * exp(-r * 4.5) * s;
+    p += d / (r + 0.0001) * wake * 0.02;
+    lift += wake * 0.14;
+    vec2 k;
+    float a = clickRing(p, u_click0, k); p += k * a * 0.03; lift += a * 0.2;
+    a = clickRing(p, u_click1, k); p += k * a * 0.03; lift += a * 0.2;
+    a = clickRing(p, u_click2, k); p += k * a * 0.03; lift += a * 0.2;
+    a = clickRing(p, u_click3, k); p += k * a * 0.03; lift += a * 0.2;
+  } else if (u_pmode < 2.5) {
+    float g = exp(-r2 * 9.0) * s;
+    float ang = g * 1.3;
+    float cs = cos(ang);
+    float sn = sin(ang);
+    p += mat2(cs, sn, -sn, cs) * d * (1.0 + g * 0.6) - d;
+    lift -= exp(-r2 * 55.0) * s * 0.3;
+  } else if (u_pmode < 3.5) {
+    float r = sqrt(r2);
+    float push = exp(-r2 * 9.0) * s;
+    p -= d / (r + 0.05) * push * 0.17;
+    float cell = hash(floor(p * 70.0) + floor(u_time * 6.0));
+    lift += (cell - 0.5) * push * 0.2;
+    vec2 k;
+    float a = clickRing(p, u_click0, k); p -= k * a * 0.08;
+    a = clickRing(p, u_click1, k); p -= k * a * 0.08;
+    a = clickRing(p, u_click2, k); p -= k * a * 0.08;
+    a = clickRing(p, u_click3, k); p -= k * a * 0.08;
+  } else {
+    float g = exp(-r2 * 3.2) * s;
+    float gust = 0.55 + 0.9 * noise(p * 4.0 + u_pvel * 0.3 + u_time * 0.6);
+    float swirl = (noise(p * 7.0 - u_time * 0.4) - 0.5) * 2.0;
+    p -= (u_pvel + vec2(-u_pvel.y, u_pvel.x) * swirl * 0.5) * g * gust * 0.11;
+  }
+}
+
 float field(vec2 sp) {
   vec2 p = (sp - 0.5 * u_res) / u_res.y;
-  // The pointer bends the scene like a lens drifting under glass; z is its strength (0 = off).
-  vec2 d = p - u_pointer.xy;
-  float pull = exp(-dot(d, d) * 16.0) * u_pointer.z;
-  p -= d * pull * 0.32;
+  float lift = 0.0;
+  interact(p, lift);
   p /= u_scale;
   float t = u_time + u_seed * 7.31;
-  float v = clamp(engine(p, t) + pull * 0.05, 0.0, 1.0);
+  float v = clamp(engine(p, t) + lift, 0.0, 1.0);
   return (u_invert > 0.5 ? 1.0 - v : v) * u_intensity;
 }
 `

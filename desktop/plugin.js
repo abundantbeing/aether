@@ -4,6 +4,51 @@ import * as sdk from "@hermes/plugin-sdk";
 // desktop-src/plugin.jsx
 import { useEffect as useEffect3 } from "react";
 
+// desktop-src/pointer.js
+var POINTER_MODES = [
+  { id: "lens", label: "Lens", index: 0, note: "the scene bends around the pointer like glass" },
+  { id: "ripples", label: "Ripples", index: 1, note: "a wake follows the pointer and clicks send out rings" },
+  { id: "well", label: "Gravity well", index: 2, note: "the scene is drawn in and swirls toward the pointer" },
+  { id: "repel", label: "Repel", index: 3, note: "the pointer pushes the scene aside and clicks send out a shock" },
+  { id: "wind", label: "Wind", index: 4, note: "moving the pointer blows the scene along" }
+];
+var POINTER_CHOICES = [
+  { id: "auto", label: "Auto" },
+  ...POINTER_MODES.map(({ id, label }) => ({ id, label })),
+  { id: "off", label: "Off" }
+];
+var AUTO = {
+  blackhole: "well",
+  moonsea: "ripples",
+  aurora: "ripples",
+  tides: "ripples",
+  sakura: "repel",
+  embers: "repel",
+  rain: "repel",
+  starfield: "repel",
+  wings: "wind",
+  temple: "wind",
+  clouds: "wind",
+  dunes: "wind",
+  streaks: "wind"
+};
+function autoMode(engine) {
+  return AUTO[engine] || "lens";
+}
+function pointerChoice(settings) {
+  if (!settings || settings.pointer === false || settings.pointerMode === "off") return "off";
+  return POINTER_CHOICES.some((c) => c.id === settings.pointerMode) ? settings.pointerMode : "auto";
+}
+function modeIndex(settings, engine) {
+  const choice = pointerChoice(settings);
+  if (choice === "off") return -1;
+  const id = choice === "auto" ? autoMode(engine) : choice;
+  const mode = POINTER_MODES.find((m) => m.id === id) || POINTER_MODES[0];
+  return mode.index;
+}
+var CLICK_SLOTS = 4;
+var CLICK_LIFE = 2.4;
+
 // desktop-src/shader.js
 var VERTEX = `
 attribute vec2 a_pos;
@@ -23,6 +68,9 @@ uniform float u_glyphCount;
 uniform sampler2D u_tex;
 uniform float u_invert;
 uniform vec3 u_pointer;
+uniform float u_pmode;
+uniform vec2 u_pvel;
+uniform vec3 u_click0, u_click1, u_click2, u_click3;
 
 float hash(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453123); }
 
@@ -936,15 +984,72 @@ float engine(vec2 p, float t) {
 }`
 };
 var FIELD = `
+// One click ring: x, y and z = age in seconds. Returns the wave at p; dir is the outward direction.
+float clickRing(vec2 p, vec3 c, out vec2 dir) {
+  vec2 d = p - c.xy;
+  float r = length(d) + 0.0001;
+  dir = d / r;
+  float life = clamp(1.0 - c.z / ${CLICK_LIFE.toFixed(1)}, 0.0, 1.0);
+  float x = (r - c.z * 0.3) * 20.0;
+  return exp(-x * x) * sin(x * 3.0) * life * life / (1.0 + r * 4.0);
+}
+
+// The pointer reaction. Every mode only moves where the scene is sampled (p) and nudges its value
+// by a bounded amount; the caller clamps the value to 0..1 before the intensity, so no mode can
+// make any pixel brighter than the scene's own brightest colour. Strength z fades to zero when the
+// pointer rests, and click rings die on their own clock, so a still cursor changes nothing.
+void interact(inout vec2 p, inout float lift) {
+  if (u_pmode < -0.5) return;
+  vec2 d = p - u_pointer.xy;
+  float r2 = dot(d, d);
+  float s = u_pointer.z;
+  if (u_pmode < 0.5) {
+    float pull = exp(-r2 * 16.0) * s;
+    p -= d * pull * 0.32;
+    lift += pull * 0.05;
+  } else if (u_pmode < 1.5) {
+    float r = sqrt(r2);
+    float wake = sin(r * 46.0 - u_time * 5.0) * exp(-r * 4.5) * s;
+    p += d / (r + 0.0001) * wake * 0.02;
+    lift += wake * 0.14;
+    vec2 k;
+    float a = clickRing(p, u_click0, k); p += k * a * 0.03; lift += a * 0.2;
+    a = clickRing(p, u_click1, k); p += k * a * 0.03; lift += a * 0.2;
+    a = clickRing(p, u_click2, k); p += k * a * 0.03; lift += a * 0.2;
+    a = clickRing(p, u_click3, k); p += k * a * 0.03; lift += a * 0.2;
+  } else if (u_pmode < 2.5) {
+    float g = exp(-r2 * 9.0) * s;
+    float ang = g * 1.3;
+    float cs = cos(ang);
+    float sn = sin(ang);
+    p += mat2(cs, sn, -sn, cs) * d * (1.0 + g * 0.6) - d;
+    lift -= exp(-r2 * 55.0) * s * 0.3;
+  } else if (u_pmode < 3.5) {
+    float r = sqrt(r2);
+    float push = exp(-r2 * 9.0) * s;
+    p -= d / (r + 0.05) * push * 0.17;
+    float cell = hash(floor(p * 70.0) + floor(u_time * 6.0));
+    lift += (cell - 0.5) * push * 0.2;
+    vec2 k;
+    float a = clickRing(p, u_click0, k); p -= k * a * 0.08;
+    a = clickRing(p, u_click1, k); p -= k * a * 0.08;
+    a = clickRing(p, u_click2, k); p -= k * a * 0.08;
+    a = clickRing(p, u_click3, k); p -= k * a * 0.08;
+  } else {
+    float g = exp(-r2 * 3.2) * s;
+    float gust = 0.55 + 0.9 * noise(p * 4.0 + u_pvel * 0.3 + u_time * 0.6);
+    float swirl = (noise(p * 7.0 - u_time * 0.4) - 0.5) * 2.0;
+    p -= (u_pvel + vec2(-u_pvel.y, u_pvel.x) * swirl * 0.5) * g * gust * 0.11;
+  }
+}
+
 float field(vec2 sp) {
   vec2 p = (sp - 0.5 * u_res) / u_res.y;
-  // The pointer bends the scene like a lens drifting under glass; z is its strength (0 = off).
-  vec2 d = p - u_pointer.xy;
-  float pull = exp(-dot(d, d) * 16.0) * u_pointer.z;
-  p -= d * pull * 0.32;
+  float lift = 0.0;
+  interact(p, lift);
   p /= u_scale;
   float t = u_time + u_seed * 7.31;
-  float v = clamp(engine(p, t) + pull * 0.05, 0.0, 1.0);
+  float v = clamp(engine(p, t) + lift, 0.0, 1.0);
   return (u_invert > 0.5 ? 1.0 - v : v) * u_intensity;
 }
 `;
@@ -1100,6 +1205,10 @@ var SceneRenderer = class {
     this.svgCanvas = null;
     this.size = { w: 1, h: 1, scale: 1 };
     this.pointer = [0, 0, 0];
+    this.mode = -1;
+    this.pvel = [0, 0];
+    this.clicks = new Float32Array(CLICK_SLOTS * 3).fill(0);
+    for (let i = 0; i < CLICK_SLOTS; i++) this.clicks[i * 3 + 2] = 99;
     this.gl = canvas.getContext("webgl", {
       alpha: false,
       antialias: false,
@@ -1165,7 +1274,13 @@ var SceneRenderer = class {
       "u_glyphCount",
       "u_tex",
       "u_invert",
-      "u_pointer"
+      "u_pointer",
+      "u_pmode",
+      "u_pvel",
+      "u_click0",
+      "u_click1",
+      "u_click2",
+      "u_click3"
     ];
     const loc = {};
     for (const n of names) loc[n] = gl.getUniformLocation(p, n);
@@ -1249,6 +1364,13 @@ var SceneRenderer = class {
     gl.uniform1f(loc.u_pattern, { bayer8: 1, noise: 2, bayer2: 3 }[finish.pattern] || 0);
     gl.uniform1f(loc.u_invert, scene.invert ? 1 : 0);
     gl.uniform3f(loc.u_pointer, this.pointer[0], this.pointer[1], this.pointer[2]);
+    gl.uniform1f(loc.u_pmode, this.mode);
+    gl.uniform2f(loc.u_pvel, this.pvel[0], this.pvel[1]);
+    const k = this.clicks;
+    gl.uniform3f(loc.u_click0, k[0], k[1], k[2]);
+    gl.uniform3f(loc.u_click1, k[3], k[4], k[5]);
+    gl.uniform3f(loc.u_click2, k[6], k[7], k[8]);
+    gl.uniform3f(loc.u_click3, k[9], k[10], k[11]);
     if (this.glyphTex && loc.u_glyphs) {
       gl.activeTexture(gl.TEXTURE0);
       gl.bindTexture(gl.TEXTURE_2D, this.glyphTex);
@@ -1286,6 +1408,20 @@ var SceneRenderer = class {
   setPointer(x, y, strength, cssW, cssH) {
     const h = Math.max(1, cssH);
     this.pointer = [(x - cssW / 2) / h, (cssH - y - cssH / 2) / h, strength];
+  }
+  /** The pointer mode (see pointer.js; -1 is off) and the pointer's velocity in field units per second. */
+  setInteraction(mode, vx, vy) {
+    this.mode = mode;
+    this.pvel[0] = vx;
+    this.pvel[1] = vy;
+  }
+  /** One click ring slot: where it landed (CSS pixels) and its age in seconds (99 = none). */
+  setClick(slot, x, y, age, cssW, cssH) {
+    const h = Math.max(1, cssH);
+    const i = slot * 3;
+    this.clicks[i] = (x - cssW / 2) / h;
+    this.clicks[i + 1] = (cssH - y - cssH / 2) / h;
+    this.clicks[i + 2] = age;
   }
   dispose() {
     this.canvas.removeEventListener("webglcontextlost", this.onLost);
@@ -3909,7 +4045,9 @@ var DEFAULT_SETTINGS = {
   followReducedMotion: true,
   pauseUnfocused: false,
   pointer: true,
-  // the scene bends a little around the pointer while it moves
+  // false keeps meaning Off (older saves)
+  pointerMode: "auto",
+  // auto | lens | ripples | well | repel | wind | off: how the scene reacts to the pointer
   strength: "balanced",
   // calm | balanced | vivid: how much the glass veil covers the scene
   quality: "balanced",
@@ -4098,12 +4236,27 @@ var Backdrop = class {
     this.ctx = null;
     this.offResize = null;
     this.offPointer = null;
+    this.offClick = null;
+    this.mode = -1;
+    this.clicksOn = false;
     this.onResize = () => this.resize();
     this.pointerTarget = { x: -1, y: -1, at: 0 };
-    this.pointerNow = { x: -1, y: -1, s: 0 };
+    this.pointerNow = { x: -1, y: -1, s: 0, vx: 0, vy: 0 };
+    this.clickX = new Float32Array(CLICK_SLOTS);
+    this.clickY = new Float32Array(CLICK_SLOTS);
+    this.clickAt = new Float64Array(CLICK_SLOTS);
+    this.clickNext = 0;
+    this.onClick = (event) => {
+      if (!this.clicksOn) return;
+      const i = this.clickNext;
+      this.clickNext = (i + 1) % CLICK_SLOTS;
+      this.clickX[i] = event.clientX;
+      this.clickY[i] = event.clientY;
+      this.clickAt[i] = performance.now();
+    };
     this.onPointer = (event) => {
       this.pointerTarget = { x: event.clientX, y: event.clientY, at: performance.now() };
-      if (this.pointerNow.x < 0) this.pointerNow = { x: event.clientX, y: event.clientY, s: 0 };
+      if (this.pointerNow.x < 0) this.pointerNow = { x: event.clientX, y: event.clientY, s: 0, vx: 0, vy: 0 };
     };
   }
   /** Listeners and timers go through ctx so the plugin host retires them on unload. */
@@ -4125,6 +4278,9 @@ var Backdrop = class {
     this.layer.style.setProperty("--aether-tint", `${Math.round(tint * 100)}%`);
     this.layer.style.setProperty("--aether-focus", `${Math.round(focus * 100)}%`);
     if (sceneChanged || !this.scene) this.buildScene(record.scene);
+    this.mode = modeIndex(settings, record.scene.engine);
+    this.clicksOn = this.mode >= 0 && settings.quality !== "battery";
+    if (!this.clicksOn) this.clickAt.fill(0);
     this.restartLoop();
   }
   mount() {
@@ -4144,6 +4300,7 @@ var Backdrop = class {
       document.body.prepend(this.layer);
       this.offResize = this.ctx ? this.ctx.addEventListener(window, "resize", this.onResize) : null;
       this.offPointer = this.ctx ? this.ctx.addEventListener(window, "pointermove", this.onPointer, { passive: true }) : null;
+      this.offClick = this.ctx ? this.ctx.addEventListener(window, "pointerdown", this.onClick, { passive: true, capture: true }) : null;
     }
     document.documentElement.setAttribute(ATTR, "");
   }
@@ -4210,7 +4367,7 @@ var Backdrop = class {
       const dt = this.lastNow ? Math.min(0.25, (now - this.lastNow) / 1e3) : 0;
       this.lastNow = now;
       this.time += dt * speed;
-      this.stepPointer();
+      this.stepPointer(dt);
       if (this.renderer && this.renderer.draw(this.time)) this.scene.setAttribute("data-ready", "");
     }, fps, Boolean(this.settings.pauseUnfocused));
   }
@@ -4231,17 +4388,36 @@ var Backdrop = class {
     if (this.ctx) this.ctx.setTimeout(free, 900);
     else free();
   }
-  stepPointer() {
+  stepPointer(dt) {
     if (!this.renderer) return;
     const now = performance.now();
-    const enabled = this.settings && this.settings.pointer !== false;
+    const enabled = this.mode >= 0;
     const fresh = now - this.pointerTarget.at < 2200;
     const want = enabled && fresh && this.pointerTarget.x >= 0 ? 1 : 0;
     const p = this.pointerNow;
+    const w = window.innerWidth;
+    const h = window.innerHeight;
+    const px = p.x;
+    const py = p.y;
     p.x += (this.pointerTarget.x - p.x) * 0.14;
     p.y += (this.pointerTarget.y - p.y) * 0.14;
     p.s += (want - p.s) * (want ? 0.08 : 0.03);
-    this.renderer.setPointer(p.x, p.y, p.s < 2e-3 ? 0 : p.s, window.innerWidth, window.innerHeight);
+    if (dt > 0 && px >= 0) {
+      const k = Math.max(1, h) * dt;
+      p.vx += ((p.x - px) / k - p.vx) * 0.3;
+      p.vy += (-(p.y - py) / k - p.vy) * 0.3;
+      const m = Math.hypot(p.vx, p.vy);
+      if (m > 1.4) {
+        p.vx *= 1.4 / m;
+        p.vy *= 1.4 / m;
+      }
+    }
+    this.renderer.setPointer(p.x, p.y, p.s < 2e-3 ? 0 : p.s, w, h);
+    this.renderer.setInteraction(this.mode, p.vx, p.vy);
+    for (let i = 0; i < CLICK_SLOTS; i++) {
+      const at = this.clickAt[i];
+      this.renderer.setClick(i, this.clickX[i], this.clickY[i], at ? (now - at) / 1e3 : 99, w, h);
+    }
   }
   disposeScene() {
     if (this.loop) this.loop.dispose();
@@ -4257,9 +4433,11 @@ var Backdrop = class {
     if (this.style) this.style.remove();
     if (this.offResize) this.offResize();
     if (this.offPointer) this.offPointer();
+    if (this.offClick) this.offClick();
     document.documentElement.removeAttribute(ATTR);
     this.offResize = null;
     this.offPointer = null;
+    this.offClick = null;
     this.layer = null;
     this.style = null;
     this.record = null;
@@ -4656,6 +4834,10 @@ var CSS2 = `
 .ae-fin-opt:focus-visible, .ae-fin-range:focus-visible { outline: 2px solid var(--ui-accent); outline-offset: 2px; }
 .ae-fin-row { display: grid; grid-template-columns: 56px minmax(0, 1fr) auto; align-items: center; gap: 8px; }
 .ae-fin-range { width: 100%; accent-color: var(--ui-accent); }
+.ae-select { font: inherit; font-size: 0.8125rem; padding: 6px 10px; border-radius: 8px; cursor: pointer; min-width: 9.5rem;
+  color: var(--ui-text-primary); background: var(--ui-bg-secondary, transparent); border: 1px solid var(--ui-stroke-secondary); }
+.ae-select:hover { background: var(--ui-bg-quaternary); }
+.ae-select:focus-visible { outline: 2px solid var(--ui-accent); outline-offset: 2px; }
 .ae-fin-val { font-family: var(--font-mono, ui-monospace, monospace); font-size: 0.75rem; color: var(--ui-text-tertiary); min-width: 3.2em; text-align: right; }
 @media (max-width: 720px) { .ae-ed { grid-template-columns: minmax(0, 1fr); } }
 @keyframes ae-breathe { 0%, 100% { opacity: 0.55; } 50% { opacity: 1; } }
@@ -4731,6 +4913,23 @@ function StrengthControl() {
     }
   );
 }
+function PointerSelect() {
+  const settings = sdk.useValue($settings);
+  const choice = pointerChoice(settings);
+  return /* @__PURE__ */ jsx4(
+    "select",
+    {
+      "aria-label": "Pointer reaction",
+      className: "ae-select",
+      onChange: (event) => {
+        const id = event.target.value;
+        updateSettings({ pointer: id !== "off", pointerMode: id === "off" ? settings.pointerMode || "auto" : id });
+      },
+      value: choice,
+      children: POINTER_CHOICES.map((c) => /* @__PURE__ */ jsx4("option", { value: c.id, children: c.label }, c.id))
+    }
+  );
+}
 function SettingsPage() {
   const settings = sdk.useValue($settings);
   const osReduced = reducedMotion();
@@ -4779,12 +4978,11 @@ function SettingsPage() {
       }
     ),
     /* @__PURE__ */ jsx4(
-      sdk.ToggleRow,
+      sdk.ListRow,
       {
-        checked: settings.pointer !== false,
-        description: "The scene bends gently around your pointer while it moves, then settles when you stop to read.",
-        label: "React to the pointer",
-        onChange: (value) => updateSettings({ pointer: value })
+        action: /* @__PURE__ */ jsx4(PointerSelect, {}),
+        description: "How the scene reacts while your pointer moves, then settles when you stop to read. Auto picks one for each scene: " + POINTER_MODES.map((m) => `${m.label.toLowerCase()} (${m.note})`).join(", ") + ". Off keeps the scene still.",
+        title: "Pointer reaction"
       }
     ),
     /* @__PURE__ */ jsx4(

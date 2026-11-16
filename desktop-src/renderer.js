@@ -2,6 +2,7 @@
 // and the gallery shares a second one for every thumbnail (drawn, then copied into each card's own
 // 2D canvas), so the app never holds more than two GL contexts for Aether however many cards show.
 
+import { CLICK_SLOTS } from './pointer.js'
 import { fragmentSource, finishSizing, VERTEX } from './shader.js'
 
 export const GLYPHS = ' .:-=+*xo#%@'
@@ -54,6 +55,10 @@ export class SceneRenderer {
     this.svgCanvas = null
     this.size = { w: 1, h: 1, scale: 1 }
     this.pointer = [0, 0, 0] // field coords x, y and strength 0..1
+    this.mode = -1 // pointer mode index in the shader; -1 is off
+    this.pvel = [0, 0] // eased pointer velocity, field units per second
+    this.clicks = new Float32Array(CLICK_SLOTS * 3).fill(0) // x, y, age (seconds) per slot
+    for (let i = 0; i < CLICK_SLOTS; i++) this.clicks[i * 3 + 2] = 99
     this.gl = canvas.getContext('webgl', {
       alpha: false,
       antialias: false,
@@ -102,7 +107,7 @@ export class SceneRenderer {
     if (!gl.getProgramParameter(p, gl.LINK_STATUS)) throw new Error(`aether link ${key}: ${gl.getProgramInfoLog(p)}`)
     const names = ['u_res', 'u_time', 'u_c0', 'u_c1', 'u_c2', 'u_c3', 'u_c4', 'u_n', 'u_scale', 'u_intensity',
       'u_density', 'u_seed', 'u_dir', 'u_cell', 'u_levels', 'u_pattern', 'u_glyphs', 'u_glyphCount', 'u_tex',
-      'u_invert', 'u_pointer']
+      'u_invert', 'u_pointer', 'u_pmode', 'u_pvel', 'u_click0', 'u_click1', 'u_click2', 'u_click3']
     const loc = {}
     for (const n of names) loc[n] = gl.getUniformLocation(p, n)
     const entry = { program: p, loc, pos: gl.getAttribLocation(p, 'a_pos') }
@@ -191,6 +196,13 @@ export class SceneRenderer {
     gl.uniform1f(loc.u_pattern, { bayer8: 1, noise: 2, bayer2: 3 }[finish.pattern] || 0)
     gl.uniform1f(loc.u_invert, scene.invert ? 1 : 0)
     gl.uniform3f(loc.u_pointer, this.pointer[0], this.pointer[1], this.pointer[2])
+    gl.uniform1f(loc.u_pmode, this.mode)
+    gl.uniform2f(loc.u_pvel, this.pvel[0], this.pvel[1])
+    const k = this.clicks
+    gl.uniform3f(loc.u_click0, k[0], k[1], k[2])
+    gl.uniform3f(loc.u_click1, k[3], k[4], k[5])
+    gl.uniform3f(loc.u_click2, k[6], k[7], k[8])
+    gl.uniform3f(loc.u_click3, k[9], k[10], k[11])
     if (this.glyphTex && loc.u_glyphs) {
       gl.activeTexture(gl.TEXTURE0)
       gl.bindTexture(gl.TEXTURE_2D, this.glyphTex)
@@ -230,6 +242,22 @@ export class SceneRenderer {
   setPointer(x, y, strength, cssW, cssH) {
     const h = Math.max(1, cssH)
     this.pointer = [(x - cssW / 2) / h, (cssH - y - cssH / 2) / h, strength]
+  }
+
+  /** The pointer mode (see pointer.js; -1 is off) and the pointer's velocity in field units per second. */
+  setInteraction(mode, vx, vy) {
+    this.mode = mode
+    this.pvel[0] = vx
+    this.pvel[1] = vy
+  }
+
+  /** One click ring slot: where it landed (CSS pixels) and its age in seconds (99 = none). */
+  setClick(slot, x, y, age, cssW, cssH) {
+    const h = Math.max(1, cssH)
+    const i = slot * 3
+    this.clicks[i] = (x - cssW / 2) / h
+    this.clicks[i + 1] = (cssH - y - cssH / 2) / h
+    this.clicks[i + 2] = age
   }
 
   dispose() {
