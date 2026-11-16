@@ -16,7 +16,15 @@
 //   --finish <style>             override the finish (dither, braille, ascii, halftone, crt, glitch, ...)
 //   --pixel <n>                  override the finish cell size
 //   --veil                       lay the theme's glass veil over the scene, as the app does behind text
-//   --pointer sweep              a slow scripted pointer drifting across the frame, bending the scene
+//   --pointer sweep              a slow scripted pointer drifting across the frame, reacting as in the app
+//   --interaction <mode>         the reaction: auto (the scene's own default), lens, ripples, well, repel,
+//                                wind or off
+//   --clicks 1.5,3.2             click the pointer at these times (seconds); click rings show in ripples
+//                                and repel
+//   --move <seconds>             the pointer moves for this long, then rests; strength follows the app's
+//                                easing (0 keeps the whole clip moving, fading in and out at the ends)
+//   --hold <seconds>             how long after the pointer stops the effect stays up before it relaxes
+//                                (the app holds 2.2)
 //   --quality 1                  render resolution for smooth finishes (1 = full output resolution)
 //   --software                   force software WebGL (otherwise the GPU is tried first)
 //
@@ -39,10 +47,10 @@ const FINISH_PIXEL = { dither: 3, pixel: 6, halftone: 8, ascii: 13, braille: 12,
 function parseArgs(argv) {
   const [target, outDir, ...rest] = argv
   if (!target || !outDir) {
-    console.error('usage: node tests/render_frames.mjs <preset|scene.json|all> <out-dir> [--width --height --scale --fps --seconds --start --motion --finish --pixel --veil --pointer sweep --quality --software]')
+    console.error('usage: node tests/render_frames.mjs <preset|scene.json|all> <out-dir> [--width --height --scale --fps --seconds --start --motion --finish --pixel --veil --pointer sweep --interaction --clicks --move --hold --quality --software]')
     process.exit(2)
   }
-  const opts = { width: 1920, height: 1080, scale: 1, fps: 30, seconds: 8, start: 23.7, motion: 'full', quality: 1, veil: false, software: false, pointer: 'none', finish: null, pixel: null }
+  const opts = { width: 1920, height: 1080, scale: 1, fps: 30, seconds: 8, start: 23.7, motion: 'full', quality: 1, veil: false, software: false, pointer: 'none', interaction: 'auto', clicks: '', move: 0, hold: 2.2, finish: null, pixel: null }
   for (let i = 0; i < rest.length; i++) {
     const key = rest[i].replace(/^--/, '')
     if (key === 'veil' || key === 'software') opts[key] = true
@@ -107,7 +115,7 @@ try {
     const dir = resolve(outDir, job.name)
     mkdirSync(dir, { recursive: true })
     await page.evaluate(({ scene, opts, background }) => {
-      const { SceneRenderer } = window.aether
+      const { SceneRenderer, modeIndex } = window.aether
       const cssW = opts.width / opts.scale
       const cssH = opts.height / opts.scale
       const glCanvas = document.createElement('canvas')
@@ -121,13 +129,54 @@ try {
       g.imageSmoothingEnabled = !['dither', 'pixel'].includes(scene.finish.style)
       const speed = (scene.speed ?? 1) * (opts.motion === 'calm' ? 0.45 : 1)
       const ease = x => x * x * (3 - 2 * x)
+      const mode = opts.interaction === 'off' ? -1 : modeIndex({ pointerMode: opts.interaction }, scene.engine)
+      const clicks = String(opts.clicks).split(',').map(Number).filter(n => Number.isFinite(n) && String(opts.clicks) !== '').sort((a, b) => a - b)
+      const rate = k => 1 - Math.pow(1 - k, 24 / opts.fps) // the app's per-frame easing, as it runs at 24 fps
+      const at = (sec, total) => {
+        const u = opts.move > 0 ? Math.min(1, sec / opts.move) : (total > 0 ? sec / total : 0)
+        return [0.5 + 0.3 * Math.sin(Math.PI * 2 * u * 0.85 + 0.6), 0.5 + 0.16 * Math.sin(Math.PI * 2 * u * 1.3 + 0.2)]
+      }
+      const sim = { x: 0, y: 0, s: 0, vx: 0, vy: 0, ready: false }
       window.renderFrame = (i, frames) => {
         const u = frames > 1 ? i / (frames - 1) : 0
+        const sec = i / opts.fps
         if (opts.pointer === 'sweep') {
-          const x = 0.5 + 0.3 * Math.sin(Math.PI * 2 * u * 0.85 + 0.6)
-          const y = 0.5 + 0.16 * Math.sin(Math.PI * 2 * u * 1.3 + 0.2)
-          const s = ease(Math.min(1, u / 0.15)) * ease(Math.min(1, (1 - u) / 0.15))
-          r.setPointer(x * cssW, y * cssH, s, cssW, cssH)
+          const total = (frames - 1) / opts.fps
+          const [tx, ty] = at(sec, total)
+          if (opts.move > 0) {
+            // The app's model: the drawn point eases toward the target, strength holds while the
+            // pointer is fresh then relaxes, and velocity is the drawn point's own, eased.
+            if (!sim.ready) { sim.x = tx * cssW; sim.y = ty * cssH; sim.ready = true }
+            const px = sim.x
+            const py = sim.y
+            const kp = rate(0.14)
+            sim.x += (tx * cssW - sim.x) * kp
+            sim.y += (ty * cssH - sim.y) * kp
+            const want = sec < opts.move + opts.hold ? 1 : 0
+            sim.s += (want - sim.s) * rate(want ? 0.08 : 0.03)
+            if (i > 0) {
+              const k = cssH / opts.fps
+              const kv = rate(0.3)
+              sim.vx += ((sim.x - px) / k - sim.vx) * kv
+              sim.vy += (-(sim.y - py) / k - sim.vy) * kv
+              const m = Math.hypot(sim.vx, sim.vy)
+              if (m > 1.4) { sim.vx *= 1.4 / m; sim.vy *= 1.4 / m }
+            }
+            r.setPointer(sim.x, sim.y, sim.s < 0.002 ? 0 : sim.s, cssW, cssH)
+            r.setInteraction(mode, sim.vx, sim.vy)
+          } else {
+            const [nx, ny] = at(Math.max(0, sec - 1 / opts.fps), total)
+            const s = ease(Math.min(1, u / 0.15)) * ease(Math.min(1, (1 - u) / 0.15))
+            r.setPointer(tx * cssW, ty * cssH, s, cssW, cssH)
+            r.setInteraction(mode, (tx - nx) * opts.fps * cssW / cssH, -(ty - ny) * opts.fps)
+          }
+          const live = clicks.filter(c => c <= sec).slice(-4)
+          for (let n = 0; n < 4; n++) {
+            const c = live[n]
+            if (c === undefined) { r.setClick(n, 0, 0, 99, cssW, cssH); continue }
+            const [cx, cy] = at(c, total)
+            r.setClick(n, cx * cssW, cy * cssH, sec - c, cssW, cssH)
+          }
         }
         if (!r.draw(opts.start + (i / opts.fps) * speed)) throw new Error('draw failed')
         g.globalAlpha = 1
