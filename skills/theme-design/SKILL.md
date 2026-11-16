@@ -91,7 +91,9 @@ theme of a bright scene (clouds, snow), set `scene.invert` so the brightest part
    and `scene.colors`. The scene, finish, glass, speed and font carry over. A new background
    re-derives the text colour and, when the scene's first colour was the old background, swaps it
    too. A theme cannot take a preset's own name; the tool saves it as "<name> (custom)".
-   People can also change a theme's colours themselves from the Aether gallery (the Colours button).
+   Any finish goes on any scene: "Talaria, but halftone" is `base` plus `finish` and nothing else.
+   People can also change a theme's colours and finish themselves, or roll a harmonious palette with
+   Randomize colours, from the Aether gallery (the Customise button).
 
 ### Hand-drawn SVG scenes
 
