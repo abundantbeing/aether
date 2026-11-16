@@ -4883,6 +4883,9 @@ function ThemeCardDirective({ attrs }) {
   ] });
 }
 
+// desktop-src/ui/chip.jsx
+import { useState as useState2 } from "react";
+
 // desktop-src/ui/settings.jsx
 import { jsx as jsx4, jsxs as jsxs2 } from "react/jsx-runtime";
 var MOTION = [
@@ -5036,8 +5039,13 @@ function SettingsPage() {
 import { jsx as jsx5, jsxs as jsxs3 } from "react/jsx-runtime";
 function StatusChip() {
   const active = sdk.useValue($active);
+  const [open, setOpen] = useState2(false);
   if (!active) return null;
-  return /* @__PURE__ */ jsxs3(sdk.Popover, { children: [
+  const run = (fn) => () => {
+    setOpen(false);
+    fn();
+  };
+  return /* @__PURE__ */ jsxs3(sdk.Popover, { onOpenChange: setOpen, open, children: [
     /* @__PURE__ */ jsx5(sdk.PopoverTrigger, { asChild: true, children: /* @__PURE__ */ jsxs3("button", { "aria-label": `Aether theme: ${active.label}`, className: "ae-chip", type: "button", children: [
       /* @__PURE__ */ jsx5(Styles, {}),
       /* @__PURE__ */ jsx5("span", { className: "ae-dot", "data-on": "" }),
@@ -5049,16 +5057,16 @@ function StatusChip() {
       /* @__PURE__ */ jsx5(MotionControl, { compact: true }),
       /* @__PURE__ */ jsx5(StrengthControl, {}),
       /* @__PURE__ */ jsxs3("div", { style: { display: "flex", gap: 6 }, children: [
-        /* @__PURE__ */ jsx5(sdk.Button, { onClick: () => openEditor(active.slug), size: "sm", variant: "secondary", children: "Customise" }),
-        /* @__PURE__ */ jsx5(sdk.Button, { onClick: () => sdk.host.navigate("/aether"), size: "sm", variant: "secondary", children: "Gallery" }),
-        /* @__PURE__ */ jsx5(sdk.Button, { onClick: () => turnOff(), size: "sm", variant: "ghost", children: "Off" })
+        /* @__PURE__ */ jsx5(sdk.Button, { onClick: run(() => openEditor(active.slug)), size: "sm", variant: "secondary", children: "Customise" }),
+        /* @__PURE__ */ jsx5(sdk.Button, { onClick: run(() => sdk.host.navigate("/aether")), size: "sm", variant: "secondary", children: "Gallery" }),
+        /* @__PURE__ */ jsx5(sdk.Button, { onClick: run(() => turnOff()), size: "sm", variant: "ghost", children: "Off" })
       ] })
     ] }) })
   ] });
 }
 
 // desktop-src/ui/editor.jsx
-import { useEffect as useEffect2, useMemo, useRef as useRef2, useState as useState2 } from "react";
+import { useEffect as useEffect2, useMemo, useRef as useRef2, useState as useState3 } from "react";
 
 // desktop-src/harmony.js
 var HARMONIES = [
@@ -5233,7 +5241,7 @@ function asHex(text) {
   return HEX.test(hex) ? hex : null;
 }
 function Swatch({ disabled, label, onChange, onRemove, value }) {
-  const [text, setText] = useState2(value);
+  const [text, setText] = useState3(value);
   useEffect2(() => setText(value), [value]);
   return /* @__PURE__ */ jsxs4("div", { className: "ae-sw", children: [
     /* @__PURE__ */ jsx6(
@@ -5330,14 +5338,14 @@ function Editor({ base }) {
   const agent = sdk.useValue($agentHalf);
   const start = useMemo(() => startingColours(base), [base]);
   const startFinish = useMemo(() => startingFinish(base), [base]);
-  const [colours, setColours] = useState2(start);
-  const [finish, setFinish] = useState2(startFinish);
-  const [textChosen, setTextChosen] = useState2(false);
-  const [label, setLabel] = useState2(null);
-  const [harmony, setHarmony] = useState2("");
-  const [result, setResult] = useState2(null);
-  const [status, setStatus] = useState2("checking");
-  const [error, setError] = useState2("");
+  const [colours, setColours] = useState3(start);
+  const [finish, setFinish] = useState3(startFinish);
+  const [textChosen, setTextChosen] = useState3(false);
+  const [label, setLabel] = useState3(null);
+  const [harmony, setHarmony] = useState3("");
+  const [result, setResult] = useState3(null);
+  const [status, setStatus] = useState3("checking");
+  const [error, setError] = useState3("");
   const ticket = useRef2(0);
   const coloursChanged = textChosen || JSON.stringify(colours) !== JSON.stringify(start);
   const finishChanged = !sameFinish(finish, startFinish);
@@ -5517,7 +5525,7 @@ function EditorHost() {
 }
 
 // desktop-src/ui/gallery.jsx
-import { useMemo as useMemo2, useState as useState3 } from "react";
+import { useMemo as useMemo2, useState as useState4 } from "react";
 import { jsx as jsx7, jsxs as jsxs5 } from "react/jsx-runtime";
 var IDEAS = [
   "a slow dithered sunset over the sea",
@@ -5547,7 +5555,7 @@ function askHermes(text) {
   return true;
 }
 function ThemeCard({ record, active, onDelete }) {
-  const [hover, setHover] = useState3(false);
+  const [hover, setHover] = useState4(false);
   const scene = record.scene;
   return /* @__PURE__ */ jsxs5(
     "div",
@@ -5593,7 +5601,7 @@ function ThemeCard({ record, active, onDelete }) {
   );
 }
 function Ask() {
-  const [text, setText] = useState3("");
+  const [text, setText] = useState4("");
   const agent = sdk.useValue($agentHalf);
   const submit = (value) => {
     if (askHermes(value)) setText("");
