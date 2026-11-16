@@ -22,7 +22,8 @@
 </p>
 
 <p align="center">
-  <img src="docs/catalog-cover.jpg" alt="Aether: a marble Hermes inside a wheel of Aether scenes, each in its own finish" width="1200">
+  <a href="https://github.com/abundantbeing/aether/releases/download/v0.1.0/aether-launch.mp4"><img src="docs/media/aether-demo.webp" width="800" alt="From the Aether launch film: in Hermes Desktop, a gold black hole fades in behind the chat after asking for one; then a run of Aether scenes cut on the same circle (a black hole, a temple sun, a neon sun, a striped sun, a moon); then the same black hole in a new finish on every beat"></a><br>
+  <sub>From the launch film, recorded in real Hermes Desktop with a real model answering. Click for the full film with sound.</sub>
 </p>
 
 **Living themes for Hermes Desktop.** Tell Hermes the look you want ("a slow dithered sunset over the sea", "a black hole, but gold", "my terminal, amber and raining") and it paints a full palette plus an animated scene behind your chats. Or pick one of eighteen hand-tuned scenes: auroras over still lakes, dawn over the edge of the world, a neon city in the rain, a temple above the clouds in Nous blue and gold.
