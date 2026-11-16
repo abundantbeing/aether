@@ -4850,6 +4850,135 @@ function StatusChip() {
 
 // desktop-src/ui/editor.jsx
 import { useEffect as useEffect2, useMemo, useRef as useRef2, useState as useState2 } from "react";
+
+// desktop-src/harmony.js
+var HARMONIES = [
+  { id: "analogous", label: "Analogous", weight: 3, offsets: (rng) => {
+    const s = 24 + rng() * 16;
+    return [0, s, -s];
+  } },
+  { id: "complementary", label: "Complementary", weight: 3, offsets: () => [0, 180] },
+  { id: "split", label: "Split complementary", weight: 2, offsets: (rng) => {
+    const s = 24 + rng() * 12;
+    return [0, 180 - s, 180 + s];
+  } },
+  { id: "triadic", label: "Triadic", weight: 2, offsets: () => [0, 120, 240] },
+  { id: "monochrome", label: "Monochrome", weight: 1, offsets: () => [0] }
+];
+var HUE_NAMES = [
+  [12, "pink"],
+  [40, "red"],
+  [65, "orange"],
+  [95, "gold"],
+  [120, "yellow"],
+  [160, "green"],
+  [185, "teal"],
+  [225, "cyan"],
+  [275, "blue"],
+  [310, "violet"],
+  [345, "magenta"],
+  [361, "pink"]
+];
+var ACCENT_MIN_CHROMA = 0.12;
+var ACCENT_NEEDED_CHROMA = 0.18;
+var INNER_MIN_CHROMA = 0.05;
+var JITTER = 12;
+var toLinear = (c) => c <= 0.04045 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4;
+var toGamma = (c) => c <= 31308e-7 ? 12.92 * c : 1.055 * c ** (1 / 2.4) - 0.055;
+var wrap = (h) => (h % 360 + 360) % 360;
+function oklabToLinear(L, a, b) {
+  const l = (L + 0.3963377774 * a + 0.2158037573 * b) ** 3;
+  const m = (L - 0.1055613458 * a - 0.0638541728 * b) ** 3;
+  const s = (L - 0.0894841775 * a - 1.291485548 * b) ** 3;
+  return [
+    4.0767416621 * l - 3.3077115913 * m + 0.2309699292 * s,
+    -1.2684380046 * l + 2.6097574011 * m - 0.3413193965 * s,
+    -0.0041960863 * l - 0.7034186147 * m + 1.707614701 * s
+  ];
+}
+var inGamut = (lin) => lin.every((c) => c >= -1e-4 && c <= 1 + 1e-4);
+function linearAt(L, C, h) {
+  const rad = h * Math.PI / 180;
+  return oklabToLinear(L, C * Math.cos(rad), C * Math.sin(rad));
+}
+function hexToOklch(hex) {
+  const n = parseInt(String(hex).slice(1), 16);
+  const [r, g, b] = [n >> 16 & 255, n >> 8 & 255, n & 255].map((v) => toLinear(v / 255));
+  const l = Math.cbrt(0.4122214708 * r + 0.5363325363 * g + 0.0514459929 * b);
+  const m = Math.cbrt(0.2119034982 * r + 0.6806995451 * g + 0.1073969566 * b);
+  const s = Math.cbrt(0.0883024619 * r + 0.2817188376 * g + 0.6299787005 * b);
+  const L = 0.2104542553 * l + 0.793617785 * m - 0.0040720468 * s;
+  const A = 1.9779984951 * l - 2.428592205 * m + 0.4505937099 * s;
+  const B = 0.0259040371 * l + 0.7827717662 * m - 0.808675766 * s;
+  return { L, C: Math.hypot(A, B), h: wrap(Math.atan2(B, A) * 180 / Math.PI) };
+}
+function maxChroma(L, h) {
+  let lo = 0;
+  let hi = 0.4;
+  for (let i = 0; i < 22; i++) {
+    const mid = (lo + hi) / 2;
+    if (inGamut(linearAt(L, mid, h))) lo = mid;
+    else hi = mid;
+  }
+  return lo;
+}
+function oklchToHex(L, C, h) {
+  const lightness = Math.min(1, Math.max(0, L));
+  const chroma = Math.min(Math.max(0, C), maxChroma(lightness, wrap(h)));
+  return "#" + linearAt(lightness, chroma, wrap(h)).map((c) => Math.round(toGamma(Math.min(1, Math.max(0, c))) * 255)).map((v) => v.toString(16).padStart(2, "0")).join("");
+}
+function hueName(h) {
+  const hue = wrap(h);
+  return HUE_NAMES.find(([top]) => hue < top)[1];
+}
+function pickHarmony(rng) {
+  const total = HARMONIES.reduce((sum, h) => sum + h.weight, 0);
+  let roll = rng() * total;
+  for (const harmony of HARMONIES) {
+    roll -= harmony.weight;
+    if (roll < 0) return harmony;
+  }
+  return HARMONIES[0];
+}
+function fit(colour, h) {
+  if (colour.C < 0.03) return 1;
+  const kept = Math.min(1, maxChroma(colour.L, h) / colour.C);
+  const hue = wrap(h);
+  return hue > 60 && hue < 130 && colour.L < 0.62 ? kept * 0.5 : kept;
+}
+var sameHex = (a, b) => String(a).toLowerCase() === String(b).toLowerCase();
+function randomHarmony(current, rng = Math.random) {
+  const bg = hexToOklch(current.background);
+  const acc = hexToOklch(current.accent);
+  const accChroma = Math.max(acc.C, ACCENT_MIN_CHROMA);
+  const harmony = pickHarmony(rng);
+  const offsets = harmony.offsets(rng);
+  const accentOffset = offsets.length > 1 ? offsets[1] : 0;
+  let best = null;
+  for (let i = 0; i < 48; i++) {
+    const h0 = rng() * 360;
+    const score = Math.min(fit(bg, h0), fit({ L: acc.L, C: Math.min(accChroma, ACCENT_NEEDED_CHROMA) }, h0 + accentOffset));
+    if (!best || score > best.score) best = { h0, score };
+    if (score >= 0.92) break;
+  }
+  const anchors = offsets.map((o) => wrap(best.h0 + o));
+  const background = oklchToHex(bg.L, bg.C, anchors[0]);
+  const accent = oklchToHex(acc.L, accChroma, wrap(best.h0 + accentOffset));
+  const n = current.stops.length;
+  const stops = current.stops.map((hex, i) => {
+    if (sameHex(hex, current.background)) return background;
+    if (sameHex(hex, current.accent)) return accent;
+    const stop = hexToOklch(hex);
+    const t = n > 1 ? i / (n - 1) : 0;
+    const k = Math.min(anchors.length - 1, Math.floor(t ** 1.5 * anchors.length));
+    const midTone = i > 0 && i < n - 1 && stop.L > 0.25 && stop.L < 0.85;
+    const chroma = midTone ? Math.max(stop.C, INNER_MIN_CHROMA) : stop.C;
+    return oklchToHex(stop.L, chroma, anchors[k] + (rng() - 0.5) * JITTER);
+  });
+  return { harmony: harmony.id, label: harmony.label, hue: hueName(anchors[0]), anchors, background, accent, stops };
+}
+
+// desktop-src/ui/editor.jsx
 import { jsx as jsx6, jsxs as jsxs4 } from "react/jsx-runtime";
 var HEX = /^#[0-9a-f]{6}$/;
 var MAX_STOPS = 5;
@@ -4996,6 +5125,7 @@ function Editor({ base }) {
   const [finish, setFinish] = useState2(startFinish);
   const [textChosen, setTextChosen] = useState2(false);
   const [label, setLabel] = useState2(null);
+  const [harmony, setHarmony] = useState2("");
   const [result, setResult] = useState2(null);
   const [status, setStatus] = useState2("checking");
   const [error, setError] = useState2("");
@@ -5051,7 +5181,14 @@ function Editor({ base }) {
     };
   }, [fresh, result, base, colours, textChosen, finish, finishChanged, startFinish]);
   const set = (patch) => {
+    setHarmony("");
     setColours((current) => ({ ...current, ...patch }));
+  };
+  const randomize = () => {
+    const roll = randomHarmony({ background: start.background, accent: start.accent, stops: start.stops });
+    setColours((current) => ({ ...current, background: roll.background, accent: roll.accent, stops: roll.stops }));
+    setTextChosen(false);
+    setHarmony(`${roll.label} colours around ${roll.hue}.`);
   };
   const setStop = (index, hex) => set({ stops: colours.stops.map((stop, i) => i === index ? hex : stop) });
   const removeStop = (index) => set({ stops: colours.stops.filter((_, i) => i !== index) });
@@ -5061,6 +5198,7 @@ function Editor({ base }) {
     setFinish(startFinish);
     setTextChosen(false);
     setLabel(null);
+    setHarmony("");
   };
   const save = async () => {
     setStatus("saving");
@@ -5092,13 +5230,31 @@ function Editor({ base }) {
       /* @__PURE__ */ jsxs4("div", { className: "ae-ed-side", children: [
         /* @__PURE__ */ jsx6(ScenePreview, { animate: !readOnly, record: draft }),
         /* @__PURE__ */ jsx6(FinishPicker, { disabled: readOnly, finish, onChange: setFinish, start: startFinish }),
-        /* @__PURE__ */ jsx6("div", { "aria-live": "polite", className: "ae-ed-notes", children: status === "error" ? /* @__PURE__ */ jsx6("div", { className: "ae-ed-note", "data-tone": "error", role: "alert", children: error }) : notes.length ? notes.map((note) => /* @__PURE__ */ jsx6("div", { className: "ae-ed-note", children: note }, note)) : status === "ready" ? /* @__PURE__ */ jsx6("div", { className: "ae-ed-note", "data-tone": "ok", children: "Readable as it is: nothing had to move." }) : status === "checking" && !readOnly ? /* @__PURE__ */ jsx6("div", { className: "ae-ed-note", "data-tone": "quiet", children: "Checking readability..." }) : null })
+        /* @__PURE__ */ jsxs4("div", { "aria-live": "polite", className: "ae-ed-notes", children: [
+          harmony ? /* @__PURE__ */ jsx6("div", { className: "ae-ed-note", "data-tone": "quiet", children: harmony }) : null,
+          status === "error" ? /* @__PURE__ */ jsx6("div", { className: "ae-ed-note", "data-tone": "error", role: "alert", children: error }) : notes.length ? notes.map((note) => /* @__PURE__ */ jsx6("div", { className: "ae-ed-note", children: note }, note)) : status === "ready" ? /* @__PURE__ */ jsx6("div", { className: "ae-ed-note", "data-tone": "ok", children: "Readable as it is: nothing had to move." }) : status === "checking" && !readOnly ? /* @__PURE__ */ jsx6("div", { className: "ae-ed-note", "data-tone": "quiet", children: "Checking readability..." }) : null
+        ] })
       ] }),
       /* @__PURE__ */ jsxs4("div", { className: "ae-ed-fields", children: [
         /* @__PURE__ */ jsxs4("label", { className: "ae-ed-name", children: [
           /* @__PURE__ */ jsx6("span", { className: "ae-ed-legend", children: "Name" }),
           /* @__PURE__ */ jsx6(sdk.Input, { disabled: readOnly, maxLength: 40, onChange: (event) => setLabel(event.target.value), value: name })
         ] }),
+        /* @__PURE__ */ jsxs4(
+          sdk.Button,
+          {
+            className: "ae-ed-roll",
+            disabled: readOnly,
+            onClick: randomize,
+            size: "sm",
+            title: `New colours for ${base.label} from one colour harmony, keeping its light and dark`,
+            variant: "secondary",
+            children: [
+              /* @__PURE__ */ jsx6(sdk.Codicon, { name: "sparkle" }),
+              " Randomize colours"
+            ]
+          }
+        ),
         /* @__PURE__ */ jsxs4("fieldset", { className: "ae-ed-group", disabled: readOnly, children: [
           /* @__PURE__ */ jsx6("legend", { className: "ae-ed-legend", children: "Theme" }),
           /* @__PURE__ */ jsx6(Swatch, { disabled: readOnly, label: "Background", onChange: (hex) => set({ background: hex }), value: colours.background }),

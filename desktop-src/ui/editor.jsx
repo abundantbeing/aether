@@ -1,6 +1,7 @@
 // The editor: change the colours and the finish of any preset or saved theme. The scene preview follows
 // every change at once; the agent half normalizes the result as you go (derived palette, readability
-// floor, the glass measured again for the finish) and says in words what it had to move.
+// floor, the glass measured again for the finish) and says in words what it had to move. Randomize
+// gives the colours new hues from one colour harmony while keeping the theme's lightness and vividness.
 // Saving a preset makes "<Preset> (custom)", or "<Preset>, <finish>" when only the finish changed;
 // saving a theme of your own updates it under its own name. Without the agent half nothing can be
 // saved, so the editor says so and stays read-only.
@@ -8,6 +9,7 @@
 import { sdk } from '../sdk.js'
 import { useEffect, useMemo, useRef, useState } from 'react'
 
+import { randomHarmony } from '../harmony.js'
 import { FINISHES } from '../presets.generated.js'
 import { $agentHalf, $catalog, $editing, closeEditor } from '../state.js'
 import { later, previewColours, saveColours } from '../sync.js'
@@ -166,6 +168,7 @@ function Editor({ base }) {
   const [finish, setFinish] = useState(startFinish)
   const [textChosen, setTextChosen] = useState(false)
   const [label, setLabel] = useState(null) // null: named automatically from what changed
+  const [harmony, setHarmony] = useState('')
   const [result, setResult] = useState(null)
   const [status, setStatus] = useState('checking') // checking | ready | saving | unavailable | error
   const [error, setError] = useState('')
@@ -228,7 +231,15 @@ function Editor({ base }) {
   }, [fresh, result, base, colours, textChosen, finish, finishChanged, startFinish])
 
   const set = patch => {
+    setHarmony('')
     setColours(current => ({ ...current, ...patch }))
+  }
+  // Always from the theme as it opened, so repeated rolls never drift from its lightness and vividness.
+  const randomize = () => {
+    const roll = randomHarmony({ background: start.background, accent: start.accent, stops: start.stops })
+    setColours(current => ({ ...current, background: roll.background, accent: roll.accent, stops: roll.stops }))
+    setTextChosen(false)
+    setHarmony(`${roll.label} colours around ${roll.hue}.`)
   }
   const setStop = (index, hex) => set({ stops: colours.stops.map((stop, i) => (i === index ? hex : stop)) })
   const removeStop = index => set({ stops: colours.stops.filter((_, i) => i !== index) })
@@ -238,6 +249,7 @@ function Editor({ base }) {
     setFinish(startFinish)
     setTextChosen(false)
     setLabel(null)
+    setHarmony('')
   }
   const save = async () => {
     setStatus('saving')
@@ -274,6 +286,11 @@ function Editor({ base }) {
           <ScenePreview animate={!readOnly} record={draft} />
           <FinishPicker disabled={readOnly} finish={finish} onChange={setFinish} start={startFinish} />
           <div aria-live="polite" className="ae-ed-notes">
+            {harmony ? (
+              <div className="ae-ed-note" data-tone="quiet">
+                {harmony}
+              </div>
+            ) : null}
             {status === 'error' ? (
               <div className="ae-ed-note" data-tone="error" role="alert">
                 {error}
@@ -300,6 +317,16 @@ function Editor({ base }) {
             <span className="ae-ed-legend">Name</span>
             <sdk.Input disabled={readOnly} maxLength={40} onChange={event => setLabel(event.target.value)} value={name} />
           </label>
+          <sdk.Button
+            className="ae-ed-roll"
+            disabled={readOnly}
+            onClick={randomize}
+            size="sm"
+            title={`New colours for ${base.label} from one colour harmony, keeping its light and dark`}
+            variant="secondary"
+          >
+            <sdk.Codicon name="sparkle" /> Randomize colours
+          </sdk.Button>
           <fieldset className="ae-ed-group" disabled={readOnly}>
             <legend className="ae-ed-legend">Theme</legend>
             <Swatch disabled={readOnly} label="Background" onChange={hex => set({ background: hex })} value={colours.background} />
