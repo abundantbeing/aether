@@ -2,8 +2,9 @@ import { sdk } from '../sdk.js'
 import { useMemo, useState } from 'react'
 
 import { PRESETS } from '../presets.generated.js'
+import { $communityThemes, deleteRecolour, openCreator, openRecolour, switchTo } from '../community.js'
 import { $agentHalf, $paintedName, $saved, $themeName, openEditor } from '../state.js'
-import { applyRecord, deleteSaved, later, turnOff } from '../sync.js'
+import { applyRecord, deleteSaved, later, openSettings, turnOff } from '../sync.js'
 import { ScenePreview } from './preview.jsx'
 import { Styles } from './styles.js'
 
@@ -85,6 +86,72 @@ function ThemeCard({ record, active, onDelete }) {
   )
 }
 
+/** A theme from another creator's plugin: their picture, their name, one click to switch to it. */
+function CommunityCard({ entry, active, current }) {
+  const { name, label, description, plugin, hex, mine } = entry
+  const by = plugin.author || plugin.name
+  return (
+    <div className="ae-cardwrap">
+      <button
+        aria-pressed={active}
+        className="ae-card"
+        data-active={active ? '' : undefined}
+        onClick={() => switchTo(name)}
+        title={`Switch to ${label}`}
+        type="button"
+      >
+        <div className="ae-shot">
+          {plugin.image ? <img alt="" draggable={false} src={plugin.image} /> : <span className="ae-shot-mark">{label.slice(0, 1)}</span>}
+          {hex ? (
+            <span className="ae-shot-accent">
+              <span className="ae-shot-dot" style={{ background: hex }} />
+              Your accent
+            </span>
+          ) : null}
+        </div>
+        <div className="ae-card-body">
+          <div className="ae-card-title">
+            <span>{label}</span>
+            {active ? <span className="ae-on">On</span> : null}
+          </div>
+          <div className="ae-card-by">
+            by {by}
+            {hex ? (mine ? ', recoloured by you' : ', recoloured') : ''}
+          </div>
+          <div className="ae-card-desc">{description}</div>
+        </div>
+      </button>
+      <div className="ae-card-actions">
+        <button
+          aria-label={`Recolour ${label}`}
+          className="ae-act"
+          onClick={() => openRecolour(entry.base || name, hex || null)}
+          title="Recolour the accent"
+          type="button"
+        >
+          <sdk.Codicon name="symbol-color" />
+        </button>
+        {plugin.repo ? (
+          <button
+            aria-label={`Open ${by}'s page for ${plugin.name}`}
+            className="ae-act"
+            onClick={() => openCreator(plugin.repo)}
+            title={`${by}'s page`}
+            type="button"
+          >
+            <sdk.Codicon name="link-external" />
+          </button>
+        ) : null}
+        {mine ? (
+          <button aria-label={`Delete ${label}`} className="ae-act" onClick={() => deleteRecolour(name, current)} title="Delete this recolour" type="button">
+            <sdk.Codicon name="close" />
+          </button>
+        ) : null}
+      </div>
+    </div>
+  )
+}
+
 function Ask() {
   const [text, setText] = useState('')
   const agent = sdk.useValue($agentHalf)
@@ -132,6 +199,7 @@ export function Gallery() {
   const committed = sdk.useValue($themeName)
   const painted = sdk.useValue($paintedName)
   const agent = sdk.useValue($agentHalf)
+  const community = sdk.useValue($communityThemes)
   const active = painted || committed
   const mine = useMemo(() => Object.values(saved).sort((a, b) => (b.updated_at || 0) - (a.updated_at || 0)), [saved])
   const onDelete = record => deleteSaved(record.slug)
@@ -147,10 +215,15 @@ export function Gallery() {
               Living themes for Hermes. Pick one, or describe the look you want and Hermes paints a palette and a moving scene behind your chats.
             </p>
           </div>
-          <span className="ae-status">
-            <span className="ae-dot" data-on={agent ? '' : undefined} />
-            {agent ? 'Hermes can paint themes' : agent === false ? 'Presets only on this profile' : 'Connecting'}
-          </span>
+          <div className="ae-head-side">
+            <span className="ae-status">
+              <span className="ae-dot" data-on={agent ? '' : undefined} />
+              {agent ? 'Hermes can paint themes' : agent === false ? 'Presets only on this profile' : 'Connecting'}
+            </span>
+            <sdk.Button aria-label="Aether settings" onClick={openSettings} size="sm" variant="secondary">
+              <sdk.Codicon name="settings-gear" /> Settings
+            </sdk.Button>
+          </div>
         </div>
         <Ask />
         <section className="ae-section">
@@ -169,6 +242,22 @@ export function Gallery() {
             </div>
           )}
         </section>
+        {community.length ? (
+          <section className="ae-section">
+            <div className="ae-section-head">
+              <h2 className="ae-h2">From other creators</h2>
+            </div>
+            <p className="ae-note">
+              Themes from other plugins you have installed. Click one to switch to it, or recolour its accent. They stay
+              their creators' work: the scenes and styles are theirs.
+            </p>
+            <div className="ae-grid">
+              {community.map(entry => (
+                <CommunityCard active={active === entry.name} current={committed} entry={entry} key={entry.name} />
+              ))}
+            </div>
+          </section>
+        ) : null}
         <section className="ae-section">
           <div className="ae-section-head">
             <h2 className="ae-h2">Presets</h2>
@@ -183,12 +272,8 @@ export function Gallery() {
           <sdk.Button onClick={() => turnOff()} size="sm" variant="secondary">
             Turn the backdrop off
           </sdk.Button>
-          <sdk.Button
-            onClick={() => sdk.host.navigate(sdk.pluginSettingsHref ? sdk.pluginSettingsHref('aether') : '/settings')}
-            size="sm"
-            variant="ghost"
-          >
-            Motion settings
+          <sdk.Button onClick={openSettings} size="sm" variant="ghost">
+            Motion and pointer settings
           </sdk.Button>
           <span>Motion pauses while Hermes is hidden and follows your system's reduced-motion setting.</span>
         </div>

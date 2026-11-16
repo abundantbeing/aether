@@ -2,7 +2,7 @@
 import * as sdk from "@hermes/plugin-sdk";
 
 // desktop-src/plugin.jsx
-import { useEffect as useEffect3 } from "react";
+import { useEffect as useEffect4 } from "react";
 
 // desktop-src/pointer.js
 var POINTER_MODES = [
@@ -4039,6 +4039,7 @@ var SAVED_KEY = "saved.v1";
 var PREVIOUS_KEY = "previous.v1";
 var SEEN_PENDING_KEY = "pending-seen.v1";
 var UNDO_KEY = "undo.v1";
+var RECOLOURS_KEY = "recolours.v1";
 var DEFAULT_SETTINGS = {
   motion: "full",
   // full | calm | still
@@ -4061,6 +4062,10 @@ var $themeName = sdk.atom("");
 var $paintedName = sdk.atom("");
 var $agentHalf = sdk.atom(null);
 var $editing = sdk.atom("");
+var $themeList = sdk.atom([]);
+var $community = sdk.atom({ themes: {}, plugins: {} });
+var $recolours = sdk.atom({});
+var $recolouring = sdk.atom(null);
 function openEditor(slug) {
   $editing.set(typeof slug === "string" ? slug : "");
 }
@@ -4076,6 +4081,37 @@ function bindStorage(ctxStorage) {
   $settings.set({ ...DEFAULT_SETTINGS, ...settings && typeof settings === "object" ? settings : {} });
   const saved = storage.get(SAVED_KEY, {});
   $saved.set(saved && typeof saved === "object" ? sanitizeSaved(saved) : {});
+  const recolours = storage.get(RECOLOURS_KEY, {});
+  $recolours.set(recolours && typeof recolours === "object" ? sanitizeRecolours(recolours) : {});
+}
+var ACCENT_NAME = /^(.+)-accent-([0-9a-f]{6})$/;
+function accentParts(name) {
+  const match = ACCENT_NAME.exec(typeof name === "string" ? name : "");
+  return match ? { base: match[1], hex: `#${match[2]}` } : null;
+}
+function isRecolour(theme) {
+  const parts = theme && accentParts(theme.name);
+  const colors = theme && theme.colors;
+  return Boolean(parts) && theme.accentOf === parts.base && typeof theme.label === "string" && colors && ["background", "foreground", "primary"].every((key) => typeof colors[key] === "string");
+}
+function sanitizeRecolours(map) {
+  const out = {};
+  for (const [name, theme] of Object.entries(map)) if (isRecolour(theme) && theme.name === name) out[name] = theme;
+  return out;
+}
+function rememberRecolour(theme) {
+  if (!isRecolour(theme)) return false;
+  const next = { ...$recolours.get(), [theme.name]: theme };
+  $recolours.set(next);
+  if (storage) storage.set(RECOLOURS_KEY, next);
+  return true;
+}
+function forgetRecolour(name) {
+  const next = { ...$recolours.get() };
+  if (!next[name]) return;
+  delete next[name];
+  $recolours.set(next);
+  if (storage) storage.set(RECOLOURS_KEY, next);
 }
 function isRecord(r) {
   return r && typeof r === "object" && typeof r.slug === "string" && r.slug.startsWith("aether-") && r.theme && r.theme.colors && r.scene && typeof r.scene.engine === "string";
@@ -4545,12 +4581,12 @@ function sync() {
         rememberRecords(state.themes);
         registerThemes($catalog.get());
       }
-      const pending = state && state.pending;
-      if (pending && pending.id && !seenPending(pending.id)) {
-        markPendingSeen(pending.id);
-        if (pending.action === "off") turnOff();
-        else if (pending.slug && $catalog.get()[pending.slug]) applyRecord($catalog.get()[pending.slug], { origin: "pending" });
-        sdk.host.request(`plugin.${PLUGIN_ID}.ack`, { id: pending.id }).catch(() => {
+      const pending2 = state && state.pending;
+      if (pending2 && pending2.id && !seenPending(pending2.id)) {
+        markPendingSeen(pending2.id);
+        if (pending2.action === "off") turnOff();
+        else if (pending2.slug && $catalog.get()[pending2.slug]) applyRecord($catalog.get()[pending2.slug], { origin: "pending" });
+        sdk.host.request(`plugin.${PLUGIN_ID}.ack`, { id: pending2.id }).catch(() => {
         });
       }
     } catch {
@@ -4590,6 +4626,182 @@ function wireSync(ctx) {
     retryCtx = null;
     for (const entry of registered.values()) entry.dispose();
     registered.clear();
+  });
+}
+function openSettings() {
+  sdk.host.navigate(sdk.pluginSettingsHref ? sdk.pluginSettingsHref(PLUGIN_ID) : "/settings");
+}
+
+// desktop-src/community.js
+var PLUGIN_ID2 = "aether";
+var HERMES_THEMES = /* @__PURE__ */ new Set([
+  "nous",
+  "nous-alt",
+  "github",
+  "catppuccin",
+  "everforest",
+  "solarized",
+  "classic",
+  "midnight",
+  "ember",
+  "mono",
+  "cyberpunk",
+  "slate"
+]);
+var EMPTY = { themes: {}, plugins: {} };
+var ours = (name) => HERMES_THEMES.has(name) || isAetherName(name);
+function candidateNames(list) {
+  const out = [];
+  for (const { name } of list) {
+    if (!name || ours(name)) continue;
+    const parts = accentParts(name);
+    if (parts && ours(parts.base)) continue;
+    out.push(name);
+  }
+  return out;
+}
+var asked = "";
+var pending = null;
+function lookUp({ force = false } = {}) {
+  if (pending) return;
+  pending = later(() => {
+    pending = null;
+    const names = candidateNames($themeList.get());
+    const key = [...names].sort().join("\n");
+    if (!force && key === asked) return;
+    asked = key;
+    if (!names.length) {
+      $community.set(EMPTY);
+      return;
+    }
+    sdk.host.request(`plugin.${PLUGIN_ID2}.community`, { names }).then((out) => {
+      if (out && out.ok) $community.set({ themes: out.themes || {}, plugins: out.plugins || {} });
+    }).catch(() => {
+      asked = "";
+    });
+  }, 250);
+}
+var $communityThemes = sdk.computed([$themeList, $community, $recolours], (list, community, recolours) => {
+  const listed = new Map(list.map((t) => [t.name, t]));
+  const bases = [];
+  const variants = /* @__PURE__ */ new Map();
+  for (const [name, pluginId] of Object.entries(community.themes || {})) {
+    const plugin = (community.plugins || {})[pluginId];
+    const theme = listed.get(name);
+    if (!plugin || !theme) continue;
+    const parts = accentParts(name);
+    if (parts) continue;
+    bases.push({ name, label: theme.label, description: theme.description, plugin });
+  }
+  const known = new Set(bases.map((b) => b.name));
+  const addVariant = (name, label, mine) => {
+    const parts = accentParts(name);
+    if (!parts || !known.has(parts.base)) return;
+    const row = variants.get(parts.base) || [];
+    if (row.some((v) => v.name === name)) return;
+    row.push({ name, label, hex: parts.hex, mine });
+    variants.set(parts.base, row);
+  };
+  for (const theme of Object.values(recolours)) addVariant(theme.name, theme.label, true);
+  for (const theme of list) addVariant(theme.name, theme.label, false);
+  bases.sort((a, b) => (a.plugin.author || "").localeCompare(b.plugin.author || "") || a.label.localeCompare(b.label));
+  const out = [];
+  for (const base of bases) {
+    out.push(base);
+    for (const v of (variants.get(base.name) || []).sort((a, b) => a.label.localeCompare(b.label))) {
+      out.push({ ...v, base: base.name, description: base.description, plugin: base.plugin });
+    }
+  }
+  return out;
+});
+function openRecolour(name, hex = null) {
+  $recolouring.set(name ? { name, hex } : null);
+}
+function closeRecolour() {
+  $recolouring.set(null);
+}
+function switchTo(name) {
+  request(name);
+}
+var registered2 = /* @__PURE__ */ new Map();
+var ctxRef2 = null;
+function registerRecolours() {
+  if (!ctxRef2) return;
+  const list = $themeList.get();
+  const names = new Set(list.map((t) => t.name));
+  for (const [name, theme] of Object.entries($recolours.get())) {
+    const wanted = !list.length || names.has(theme.accentOf);
+    const seen = registered2.get(name);
+    if (seen && (!wanted || seen.theme !== theme)) {
+      seen.dispose();
+      registered2.delete(name);
+    }
+    if (wanted && !registered2.has(name)) {
+      registered2.set(name, { theme, dispose: ctxRef2.register({ id: `recolour-${name}`, area: sdk.THEMES_AREA, data: theme }) });
+    }
+  }
+  for (const [name, entry] of registered2) {
+    if (!$recolours.get()[name]) {
+      entry.dispose();
+      registered2.delete(name);
+    }
+  }
+}
+function saveRecolour(theme) {
+  if (!rememberRecolour(theme)) return false;
+  registerRecolours();
+  request(theme.name);
+  return true;
+}
+function deleteRecolour(name, current) {
+  const theme = $recolours.get()[name];
+  if (!theme) return;
+  if (current === name) request(theme.accentOf);
+  forgetRecolour(name);
+  registerRecolours();
+}
+function refreshFromBase(painted, baseName2) {
+  if (!painted || painted.accentOf) return;
+  const next = {};
+  let changed = false;
+  for (const [name, theme] of Object.entries($recolours.get())) {
+    if (theme.accentOf !== baseName2) continue;
+    const fresh = { ...theme };
+    for (const key of ["customCSS", "typography", "terminal", "darkTerminal"]) {
+      if (painted[key] === void 0) delete fresh[key];
+      else fresh[key] = painted[key];
+    }
+    if (JSON.stringify(fresh) !== JSON.stringify(theme)) {
+      next[name] = fresh;
+      changed = true;
+    }
+  }
+  if (changed) for (const theme of Object.values(next)) rememberRecolour(theme);
+}
+function openCreator(url) {
+  if (ctxRef2 && ctxRef2.os && typeof ctxRef2.os.openExternal === "function" && /^https:\/\//.test(url)) {
+    ctxRef2.os.openExternal(url);
+  }
+}
+function wireCommunity(ctx) {
+  ctxRef2 = ctx;
+  registerRecolours();
+  const unList = $themeList.subscribe(() => {
+    registerRecolours();
+    lookUp();
+  });
+  const unRecolours = $recolours.subscribe(() => registerRecolours());
+  const unAgent = $agentHalf.subscribe((on) => {
+    if (on) lookUp({ force: true });
+  });
+  ctx.onDispose(unList);
+  ctx.onDispose(unRecolours);
+  ctx.onDispose(unAgent);
+  ctx.onDispose(() => {
+    if (sdk.setAccentOverride) sdk.setAccentOverride(null);
+    for (const entry of registered2.values()) entry.dispose();
+    registered2.clear();
+    ctxRef2 = null;
   });
 }
 
@@ -4763,6 +4975,30 @@ var CSS2 = `
 .ae-head { display: flex; align-items: flex-end; justify-content: space-between; gap: 16px; flex-wrap: wrap; }
 .ae-title { font-size: 1.5rem; font-weight: 650; letter-spacing: -0.01em; margin: 0; }
 .ae-sub { margin: 6px 0 0; color: var(--ui-text-secondary); font-size: 0.875rem; max-width: 60ch; line-height: 1.5; }
+.ae-head-side { display: flex; align-items: center; gap: 12px; }
+.ae-note { margin: -4px 0 0; font-size: 0.8125rem; line-height: 1.5; color: var(--ui-text-secondary); max-width: 72ch; }
+.ae-shot { position: relative; display: block; width: 100%; aspect-ratio: 1.6; overflow: hidden; background: var(--ui-bg-quaternary); }
+.ae-shot > img { display: block; width: 100%; height: 100%; object-fit: cover; }
+.ae-shot-mark { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
+  font-size: 2.25rem; font-weight: 600; color: var(--ui-text-quaternary); }
+.ae-shot-accent { position: absolute; left: 8px; bottom: 8px; display: inline-flex; align-items: center; gap: 6px; padding: 3px 9px 3px 4px;
+  border-radius: 99px; font-size: 0.6875rem; font-weight: 600; color: var(--ui-text-primary);
+  background: color-mix(in srgb, var(--ui-bg-chrome) 86%, transparent); box-shadow: inset 0 0 0 1px var(--ui-stroke-secondary); }
+.ae-shot-dot { width: 14px; height: 14px; border-radius: 99px; box-shadow: inset 0 0 0 1px rgb(255 255 255 / 0.35); }
+.ae-card-by { font-size: 0.75rem; color: var(--ui-text-tertiary); }
+.ae-pop-settings { align-self: flex-start; }
+.ae-rc { display: flex; flex-direction: column; gap: 16px; width: min(440px, 84vw); text-align: left; }
+.ae-rc-swatches { display: flex; flex-wrap: wrap; gap: 10px; }
+.ae-rc-sw { width: 32px; height: 32px; border-radius: 99px; border: 0; cursor: pointer; padding: 0;
+  box-shadow: inset 0 0 0 1px rgb(127 127 127 / 0.45); transition: transform 120ms ease; }
+.ae-rc-sw:hover { transform: scale(1.08); }
+.ae-rc-sw[data-on] { box-shadow: 0 0 0 2px var(--ui-bg-elevated), 0 0 0 4px var(--ui-text-primary); }
+.ae-rc-sw:focus-visible { outline: 2px solid var(--ui-accent); outline-offset: 3px; }
+.ae-rc-custom { display: flex; flex-direction: column; gap: 6px; }
+.ae-rc-sample { display: flex; align-items: center; gap: 14px; padding: 12px 14px; border-radius: 12px;
+  background: var(--ui-bg-quaternary); font-size: 0.8125rem; }
+.ae-rc-btn { padding: 5px 12px; border-radius: 8px; font-weight: 600; background: var(--ui-accent); color: var(--dt-midground-foreground, #fff); }
+.ae-rc-link { color: var(--ui-accent); text-decoration: underline; text-underline-offset: 3px; }
 .ae-status { display: inline-flex; align-items: center; gap: 6px; font-size: 0.75rem; color: var(--ui-text-tertiary); }
 .ae-dot { width: 7px; height: 7px; border-radius: 99px; background: var(--ui-text-quaternary); }
 .ae-dot[data-on] { background: var(--ui-accent); box-shadow: 0 0 0 3px color-mix(in srgb, var(--ui-accent) 22%, transparent); }
@@ -4853,7 +5089,7 @@ var CSS2 = `
 @media (max-width: 720px) { .ae-ed { grid-template-columns: minmax(0, 1fr); } }
 @keyframes ae-breathe { 0%, 100% { opacity: 0.55; } 50% { opacity: 1; } }
 .ae-chip .ae-dot[data-on] { animation: ae-breathe 3.2s ease-in-out infinite; }
-@media (prefers-reduced-motion: reduce) { .ae-card, .ae-card-actions { transition: none; } .ae-chip .ae-dot[data-on] { animation: none; } }
+@media (prefers-reduced-motion: reduce) { .ae-card, .ae-card-actions, .ae-rc-sw { transition: none; } .ae-chip .ae-dot[data-on] { animation: none; } }
 `;
 function Styles() {
   return /* @__PURE__ */ jsx2("style", { children: CSS2 });
@@ -5028,7 +5264,7 @@ function SettingsPage() {
       sdk.ListRow,
       {
         action: /* @__PURE__ */ jsx4(sdk.Button, { onClick: () => sdk.host.navigate("/aether"), size: "sm", variant: "secondary", children: "Open gallery" }),
-        description: "Presets, themes Hermes made for you, and a box to describe a new one.",
+        description: "Presets, themes Hermes made for you, themes from other creators you have installed, and a box to describe a new one.",
         title: "Theme gallery"
       }
     )
@@ -5060,6 +5296,10 @@ function StatusChip() {
         /* @__PURE__ */ jsx5(sdk.Button, { onClick: run(() => openEditor(active.slug)), size: "sm", variant: "secondary", children: "Customise" }),
         /* @__PURE__ */ jsx5(sdk.Button, { onClick: run(() => sdk.host.navigate("/aether")), size: "sm", variant: "secondary", children: "Gallery" }),
         /* @__PURE__ */ jsx5(sdk.Button, { onClick: run(() => turnOff()), size: "sm", variant: "ghost", children: "Off" })
+      ] }),
+      /* @__PURE__ */ jsxs3(sdk.Button, { className: "ae-pop-settings", onClick: run(openSettings), size: "sm", variant: "ghost", children: [
+        /* @__PURE__ */ jsx5(sdk.Codicon, { name: "settings-gear" }),
+        " All Aether settings"
       ] })
     ] }) })
   ] });
@@ -5600,6 +5840,69 @@ function ThemeCard({ record, active, onDelete }) {
     }
   );
 }
+function CommunityCard({ entry, active, current }) {
+  const { name, label, description, plugin, hex, mine } = entry;
+  const by = plugin.author || plugin.name;
+  return /* @__PURE__ */ jsxs5("div", { className: "ae-cardwrap", children: [
+    /* @__PURE__ */ jsxs5(
+      "button",
+      {
+        "aria-pressed": active,
+        className: "ae-card",
+        "data-active": active ? "" : void 0,
+        onClick: () => switchTo(name),
+        title: `Switch to ${label}`,
+        type: "button",
+        children: [
+          /* @__PURE__ */ jsxs5("div", { className: "ae-shot", children: [
+            plugin.image ? /* @__PURE__ */ jsx7("img", { alt: "", draggable: false, src: plugin.image }) : /* @__PURE__ */ jsx7("span", { className: "ae-shot-mark", children: label.slice(0, 1) }),
+            hex ? /* @__PURE__ */ jsxs5("span", { className: "ae-shot-accent", children: [
+              /* @__PURE__ */ jsx7("span", { className: "ae-shot-dot", style: { background: hex } }),
+              "Your accent"
+            ] }) : null
+          ] }),
+          /* @__PURE__ */ jsxs5("div", { className: "ae-card-body", children: [
+            /* @__PURE__ */ jsxs5("div", { className: "ae-card-title", children: [
+              /* @__PURE__ */ jsx7("span", { children: label }),
+              active ? /* @__PURE__ */ jsx7("span", { className: "ae-on", children: "On" }) : null
+            ] }),
+            /* @__PURE__ */ jsxs5("div", { className: "ae-card-by", children: [
+              "by ",
+              by,
+              hex ? mine ? ", recoloured by you" : ", recoloured" : ""
+            ] }),
+            /* @__PURE__ */ jsx7("div", { className: "ae-card-desc", children: description })
+          ] })
+        ]
+      }
+    ),
+    /* @__PURE__ */ jsxs5("div", { className: "ae-card-actions", children: [
+      /* @__PURE__ */ jsx7(
+        "button",
+        {
+          "aria-label": `Recolour ${label}`,
+          className: "ae-act",
+          onClick: () => openRecolour(entry.base || name, hex || null),
+          title: "Recolour the accent",
+          type: "button",
+          children: /* @__PURE__ */ jsx7(sdk.Codicon, { name: "symbol-color" })
+        }
+      ),
+      plugin.repo ? /* @__PURE__ */ jsx7(
+        "button",
+        {
+          "aria-label": `Open ${by}'s page for ${plugin.name}`,
+          className: "ae-act",
+          onClick: () => openCreator(plugin.repo),
+          title: `${by}'s page`,
+          type: "button",
+          children: /* @__PURE__ */ jsx7(sdk.Codicon, { name: "link-external" })
+        }
+      ) : null,
+      mine ? /* @__PURE__ */ jsx7("button", { "aria-label": `Delete ${label}`, className: "ae-act", onClick: () => deleteRecolour(name, current), title: "Delete this recolour", type: "button", children: /* @__PURE__ */ jsx7(sdk.Codicon, { name: "close" }) }) : null
+    ] })
+  ] });
+}
 function Ask() {
   const [text, setText] = useState4("");
   const agent = sdk.useValue($agentHalf);
@@ -5635,6 +5938,7 @@ function Gallery() {
   const committed = sdk.useValue($themeName);
   const painted = sdk.useValue($paintedName);
   const agent = sdk.useValue($agentHalf);
+  const community = sdk.useValue($communityThemes);
   const active = painted || committed;
   const mine = useMemo2(() => Object.values(saved).sort((a, b) => (b.updated_at || 0) - (a.updated_at || 0)), [saved]);
   const onDelete = (record) => deleteSaved(record.slug);
@@ -5646,9 +5950,15 @@ function Gallery() {
           /* @__PURE__ */ jsx7("h1", { className: "ae-title", children: "Aether" }),
           /* @__PURE__ */ jsx7("p", { className: "ae-sub", children: "Living themes for Hermes. Pick one, or describe the look you want and Hermes paints a palette and a moving scene behind your chats." })
         ] }),
-        /* @__PURE__ */ jsxs5("span", { className: "ae-status", children: [
-          /* @__PURE__ */ jsx7("span", { className: "ae-dot", "data-on": agent ? "" : void 0 }),
-          agent ? "Hermes can paint themes" : agent === false ? "Presets only on this profile" : "Connecting"
+        /* @__PURE__ */ jsxs5("div", { className: "ae-head-side", children: [
+          /* @__PURE__ */ jsxs5("span", { className: "ae-status", children: [
+            /* @__PURE__ */ jsx7("span", { className: "ae-dot", "data-on": agent ? "" : void 0 }),
+            agent ? "Hermes can paint themes" : agent === false ? "Presets only on this profile" : "Connecting"
+          ] }),
+          /* @__PURE__ */ jsxs5(sdk.Button, { "aria-label": "Aether settings", onClick: openSettings, size: "sm", variant: "secondary", children: [
+            /* @__PURE__ */ jsx7(sdk.Codicon, { name: "settings-gear" }),
+            " Settings"
+          ] })
         ] })
       ] }),
       /* @__PURE__ */ jsx7(Ask, {}),
@@ -5656,64 +5966,243 @@ function Gallery() {
         /* @__PURE__ */ jsx7("div", { className: "ae-section-head", children: /* @__PURE__ */ jsx7("h2", { className: "ae-h2", children: "Your themes" }) }),
         mine.length ? /* @__PURE__ */ jsx7("div", { className: "ae-grid", children: mine.map((record) => /* @__PURE__ */ jsx7(ThemeCard, { active: active === record.slug, onDelete, record }, record.slug)) }) : /* @__PURE__ */ jsx7("div", { className: "ae-empty", children: "Nothing yet. Describe a theme above, tell Hermes what you want in any chat, or change a preset's colours." })
       ] }),
+      community.length ? /* @__PURE__ */ jsxs5("section", { className: "ae-section", children: [
+        /* @__PURE__ */ jsx7("div", { className: "ae-section-head", children: /* @__PURE__ */ jsx7("h2", { className: "ae-h2", children: "From other creators" }) }),
+        /* @__PURE__ */ jsx7("p", { className: "ae-note", children: "Themes from other plugins you have installed. Click one to switch to it, or recolour its accent. They stay their creators' work: the scenes and styles are theirs." }),
+        /* @__PURE__ */ jsx7("div", { className: "ae-grid", children: community.map((entry) => /* @__PURE__ */ jsx7(CommunityCard, { active: active === entry.name, current: committed, entry }, entry.name)) })
+      ] }) : null,
       /* @__PURE__ */ jsxs5("section", { className: "ae-section", children: [
         /* @__PURE__ */ jsx7("div", { className: "ae-section-head", children: /* @__PURE__ */ jsx7("h2", { className: "ae-h2", children: "Presets" }) }),
         /* @__PURE__ */ jsx7("div", { className: "ae-grid", children: PRESETS.map((record) => /* @__PURE__ */ jsx7(ThemeCard, { active: active === record.slug, record }, record.slug)) })
       ] }),
       /* @__PURE__ */ jsxs5("div", { className: "ae-foot", children: [
         /* @__PURE__ */ jsx7(sdk.Button, { onClick: () => turnOff(), size: "sm", variant: "secondary", children: "Turn the backdrop off" }),
-        /* @__PURE__ */ jsx7(
-          sdk.Button,
-          {
-            onClick: () => sdk.host.navigate(sdk.pluginSettingsHref ? sdk.pluginSettingsHref("aether") : "/settings"),
-            size: "sm",
-            variant: "ghost",
-            children: "Motion settings"
-          }
-        ),
+        /* @__PURE__ */ jsx7(sdk.Button, { onClick: openSettings, size: "sm", variant: "ghost", children: "Motion and pointer settings" }),
         /* @__PURE__ */ jsx7("span", { children: "Motion pauses while Hermes is hidden and follows your system's reduced-motion setting." })
       ] })
     ] })
   ] });
 }
 
-// desktop-src/plugin.jsx
+// desktop-src/ui/recolour.jsx
+import { useEffect as useEffect3, useLayoutEffect, useRef as useRef3, useState as useState5 } from "react";
 import { jsx as jsx8, jsxs as jsxs6 } from "react/jsx-runtime";
+var SWATCHES = [
+  { name: "Mono", light: "#000000", dark: "#ffffff" },
+  { name: "GitHub green", light: "#2ea043", dark: "#2ea043" },
+  { name: "Cyber cyan", light: "#00d5ff", dark: "#00d5ff" },
+  { name: "Nous blue", light: "#0053fd", dark: "#0053fd" },
+  { name: "Ultraviolet", light: "#8a2be2", dark: "#8a2be2" },
+  { name: "Barbie pink", light: "#e0218a", dark: "#e0218a" },
+  { name: "Electric red", light: "#ff073a", dark: "#ff073a" },
+  { name: "Safety orange", light: "#ff6a00", dark: "#ff6a00" }
+];
+var normalize = (value) => {
+  if (sdk.normalizeHex) return sdk.normalizeHex(value) || null;
+  const hex = String(value || "").trim().toLowerCase();
+  return /^#[0-9a-f]{6}$/.test(hex) ? hex : null;
+};
+var modeOf = (theme) => String(theme && theme.name || "").endsWith("-light") ? "light" : "dark";
+var baseOf = (name) => String(name || "").replace(/-(light|dark)$/, "");
+function swatchName(hex) {
+  const found = SWATCHES.find((s) => s.light === hex || s.dark === hex);
+  return found ? found.name : hex;
+}
+function Recolour({ name, start }) {
+  const { theme, themeName, previewTheme, clearThemePreview } = sdk.useTheme();
+  const list = sdk.useValue($themeList);
+  const base = list.find((t) => t.name === name) || { name, label: name, description: "" };
+  const [hex, setHex] = useState5(start);
+  const [text, setText] = useState5(start || "");
+  const [own, setOwn] = useState5(null);
+  const [phase, setPhase] = useState5("idle");
+  const previous = useRef3(themeName);
+  const previewed = useRef3(false);
+  const saved = useRef3(false);
+  const mode = modeOf(theme);
+  const painted = baseOf(theme && theme.name);
+  const onBase = themeName === name;
+  useEffect3(() => {
+    if (themeName !== name) request(name);
+    return () => {
+      if (sdk.setAccentOverride) sdk.setAccentOverride(null);
+      if (!saved.current && previous.current && previous.current !== name) request(previous.current);
+    };
+  }, []);
+  useEffect3(() => {
+    if (!own && theme && !theme.accentOf && painted === name) setOwn(normalize(theme.colors.primary));
+  }, [own, theme, painted, name]);
+  useEffect3(() => {
+    if (!sdk.setAccentOverride || !onBase || phase !== "idle") return;
+    sdk.setAccentOverride(hex && hex !== own ? hex : null);
+  }, [hex, own, onBase, phase]);
+  useLayoutEffect(() => {
+    if (phase !== "capture" || !theme || modeOf(theme) !== "light" || !theme.accentOf) return;
+    const light = theme;
+    if (previewed.current && clearThemePreview) clearThemePreview();
+    setPhase("done");
+    const { name: paintedName, label: _label, description: _description, colors, darkColors, ...rest } = light;
+    const recolour = {
+      ...rest,
+      name: baseOf(paintedName),
+      label: `${base.label} \xB7 ${swatchName(hex)}`,
+      description: base.description || "",
+      accentOf: name,
+      colors,
+      darkColors: darkColors || colors
+    };
+    if (sdk.setAccentOverride) sdk.setAccentOverride(null);
+    saved.current = saveRecolour(recolour);
+    closeRecolour();
+  }, [phase, theme, hex, name, base.label, base.description, clearThemePreview]);
+  const save = () => {
+    if (!hex || hex === own || !onBase) return;
+    previewed.current = mode !== "light";
+    setPhase("capture");
+    if (previewed.current && previewTheme) previewTheme(name, "light");
+  };
+  const cancel = () => closeRecolour();
+  const pick = (value) => {
+    const next = normalize(value);
+    if (!next) return;
+    setHex(next);
+    setText(next);
+  };
+  const dark = mode === "dark";
+  const ready = Boolean(hex) && hex !== own && onBase && phase === "idle";
+  return /* @__PURE__ */ jsxs6(
+    sdk.DialogContent,
+    {
+      fitContent: true,
+      onOpenAutoFocus: (event) => {
+        event.preventDefault();
+      },
+      children: [
+        /* @__PURE__ */ jsx8(Styles, {}),
+        /* @__PURE__ */ jsxs6(sdk.DialogHeader, { children: [
+          /* @__PURE__ */ jsxs6(sdk.DialogTitle, { children: [
+            "Recolour: ",
+            base.label
+          ] }),
+          /* @__PURE__ */ jsx8(sdk.DialogDescription, { children: "Pick a new accent for buttons, links and highlights. Everything else stays as its creator made it, and the recolour is saved only on this computer." })
+        ] }),
+        /* @__PURE__ */ jsxs6("div", { className: "ae-rc", children: [
+          /* @__PURE__ */ jsx8("div", { "aria-label": "Accent colours", className: "ae-rc-swatches", role: "radiogroup", children: SWATCHES.map((s) => {
+            const value = dark ? s.dark : s.light;
+            const on = hex === value;
+            return /* @__PURE__ */ jsx8(
+              "button",
+              {
+                "aria-checked": on,
+                "aria-label": s.name,
+                className: "ae-rc-sw",
+                "data-on": on ? "" : void 0,
+                onClick: () => pick(value),
+                role: "radio",
+                style: { background: value },
+                title: s.name,
+                type: "button"
+              },
+              s.name
+            );
+          }) }),
+          /* @__PURE__ */ jsxs6("div", { className: "ae-rc-custom", children: [
+            /* @__PURE__ */ jsx8("span", { className: "ae-ed-legend", children: "Any colour" }),
+            /* @__PURE__ */ jsxs6("div", { className: "ae-sw", style: { gridTemplateColumns: "28px 96px" }, children: [
+              /* @__PURE__ */ jsx8(
+                "input",
+                {
+                  "aria-label": "Choose any accent colour",
+                  className: "ae-sw-pick",
+                  onChange: (event) => pick(event.target.value),
+                  type: "color",
+                  value: hex || own || "#ffffff"
+                }
+              ),
+              /* @__PURE__ */ jsx8(
+                sdk.Input,
+                {
+                  "aria-label": "Accent hex value",
+                  className: "ae-sw-hex",
+                  maxLength: 7,
+                  onBlur: () => pick(text),
+                  onChange: (event) => {
+                    setText(event.target.value);
+                    if (normalize(event.target.value)) pick(event.target.value);
+                  },
+                  placeholder: own || "#rrggbb",
+                  value: text
+                }
+              )
+            ] })
+          ] }),
+          /* @__PURE__ */ jsxs6("div", { className: "ae-rc-sample", "aria-hidden": true, children: [
+            /* @__PURE__ */ jsx8("span", { className: "ae-rc-btn", children: "Button" }),
+            /* @__PURE__ */ jsx8("span", { className: "ae-rc-link", children: "A highlighted link" }),
+            /* @__PURE__ */ jsx8("span", { className: "ae-on", children: "On" })
+          ] }),
+          /* @__PURE__ */ jsx8("div", { className: "ae-ed-note", "data-tone": "quiet", children: hex && hex === own ? `That is ${base.label}'s own accent.` : hex ? `The window behind shows ${base.label} with ${swatchName(hex)} as its accent.` : `Pick a colour to see ${base.label} with it.` })
+        ] }),
+        /* @__PURE__ */ jsxs6(sdk.DialogFooter, { children: [
+          /* @__PURE__ */ jsx8(sdk.Button, { onClick: cancel, variant: "secondary", children: "Cancel" }),
+          /* @__PURE__ */ jsx8(sdk.Button, { disabled: !ready, onClick: save, children: "Save and switch" })
+        ] })
+      ]
+    }
+  );
+}
+function RecolourHost() {
+  const target = sdk.useValue($recolouring);
+  if (!sdk.Dialog || !sdk.DialogContent || !sdk.setAccentOverride) return null;
+  return /* @__PURE__ */ jsx8(sdk.Dialog, { onOpenChange: (open) => open ? null : closeRecolour(), open: Boolean(target), children: target ? /* @__PURE__ */ jsx8(Recolour, { name: target.name, start: target.hex }, `${target.name}:${target.hex || ""}`) : null });
+}
+
+// desktop-src/plugin.jsx
+import { Fragment, jsx as jsx9, jsxs as jsxs7 } from "react/jsx-runtime";
 var ROUTE = "/aether";
 var baseName = (name) => String(name || "").replace(/-(light|dark)$/, "");
 function BackdropHost() {
-  const { theme, themeName } = sdk.useTheme();
+  const { theme, themeName, availableThemes } = sdk.useTheme();
   const active = sdk.useValue($active);
   const settings = sdk.useValue($settings);
   const painted = baseName(theme && theme.name);
-  useEffect3(() => {
+  useEffect4(() => {
     $themeName.set(themeName);
   }, [themeName]);
-  useEffect3(() => {
+  useEffect4(() => {
     $paintedName.set(painted);
   }, [painted]);
-  useEffect3(() => {
+  useEffect4(() => {
+    if (Array.isArray(availableThemes)) $themeList.set(availableThemes);
+  }, [availableThemes]);
+  useEffect4(() => {
+    if (theme && !(sdk.$accentOverride && sdk.$accentOverride.get())) refreshFromBase(theme, painted);
+  }, [theme, painted]);
+  useEffect4(() => {
     if (active) backdrop.show(active, settings);
     else backdrop.hide();
   }, [active, settings]);
-  return /* @__PURE__ */ jsx8(EditorHost, {});
+  return /* @__PURE__ */ jsxs7(Fragment, { children: [
+    /* @__PURE__ */ jsx9(EditorHost, {}),
+    /* @__PURE__ */ jsx9(RecolourHost, {})
+  ] });
 }
 function AppearanceCard() {
   const active = sdk.useValue($active);
   const picks = PRESETS.slice(0, 4);
-  return /* @__PURE__ */ jsxs6("div", { style: { display: "flex", flexDirection: "column", gap: 10, padding: "12px 0" }, children: [
-    /* @__PURE__ */ jsx8(Styles, {}),
-    /* @__PURE__ */ jsxs6("div", { style: { display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 12 }, children: [
-      /* @__PURE__ */ jsxs6("div", { children: [
-        /* @__PURE__ */ jsx8("div", { style: { fontWeight: 600, fontSize: "0.875rem" }, children: "Living themes" }),
-        /* @__PURE__ */ jsxs6("div", { style: { fontSize: "0.75rem", color: "var(--ui-text-secondary)" }, children: [
+  return /* @__PURE__ */ jsxs7("div", { style: { display: "flex", flexDirection: "column", gap: 10, padding: "12px 0" }, children: [
+    /* @__PURE__ */ jsx9(Styles, {}),
+    /* @__PURE__ */ jsxs7("div", { style: { display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 12 }, children: [
+      /* @__PURE__ */ jsxs7("div", { children: [
+        /* @__PURE__ */ jsx9("div", { style: { fontWeight: 600, fontSize: "0.875rem" }, children: "Living themes" }),
+        /* @__PURE__ */ jsxs7("div", { style: { fontSize: "0.75rem", color: "var(--ui-text-secondary)" }, children: [
           active ? `${active.label} is on. ` : "",
           "Animated scenes from Aether, or ask Hermes to paint your own."
         ] })
       ] }),
-      /* @__PURE__ */ jsx8(sdk.Button, { onClick: () => sdk.host.navigate(ROUTE), size: "sm", variant: "secondary", children: "Open gallery" })
+      /* @__PURE__ */ jsx9(sdk.Button, { onClick: () => sdk.host.navigate(ROUTE), size: "sm", variant: "secondary", children: "Open gallery" })
     ] }),
-    /* @__PURE__ */ jsx8("div", { style: { display: "grid", gridTemplateColumns: "repeat(4, minmax(0, 1fr))", gap: 10 }, children: picks.map((record) => /* @__PURE__ */ jsxs6(
+    /* @__PURE__ */ jsx9("div", { style: { display: "grid", gridTemplateColumns: "repeat(4, minmax(0, 1fr))", gap: 10 }, children: picks.map((record) => /* @__PURE__ */ jsxs7(
       "button",
       {
         className: "ae-card",
@@ -5722,15 +6211,15 @@ function AppearanceCard() {
         title: record.label,
         type: "button",
         children: [
-          /* @__PURE__ */ jsx8(ScenePreview, { mock: false, record }),
-          /* @__PURE__ */ jsx8("div", { className: "ae-card-body", children: /* @__PURE__ */ jsx8("div", { className: "ae-card-title", children: record.label }) })
+          /* @__PURE__ */ jsx9(ScenePreview, { mock: false, record }),
+          /* @__PURE__ */ jsx9("div", { className: "ae-card-body", children: /* @__PURE__ */ jsx9("div", { className: "ae-card-title", children: record.label }) })
         ]
       },
       record.slug
     )) }),
-    active ? /* @__PURE__ */ jsxs6("div", { style: { display: "flex", alignItems: "center", gap: 10 }, children: [
-      /* @__PURE__ */ jsx8("span", { style: { fontSize: "0.75rem", color: "var(--ui-text-tertiary)" }, children: "Motion" }),
-      /* @__PURE__ */ jsx8(MotionControl, { compact: true })
+    active ? /* @__PURE__ */ jsxs7("div", { style: { display: "flex", alignItems: "center", gap: 10 }, children: [
+      /* @__PURE__ */ jsx9("span", { style: { fontSize: "0.75rem", color: "var(--ui-text-tertiary)" }, children: "Motion" }),
+      /* @__PURE__ */ jsx9(MotionControl, { compact: true })
     ] }) : null
   ] });
 }
@@ -5769,24 +6258,25 @@ var plugin_default = {
     registerThemes($catalog.get());
     const unCatalog = $catalog.subscribe((catalog) => registerThemes(catalog));
     ctx.onDispose(unCatalog);
-    ctx.register({ id: "backdrop-host", area: sdk.TITLEBAR_AREAS.center, render: () => /* @__PURE__ */ jsx8(BackdropHost, {}) });
-    ctx.register({ id: "page", area: sdk.ROUTES_AREA, data: { path: ROUTE }, render: () => /* @__PURE__ */ jsx8(Gallery, {}) });
+    ctx.register({ id: "backdrop-host", area: sdk.TITLEBAR_AREAS.center, render: () => /* @__PURE__ */ jsx9(BackdropHost, {}) });
+    ctx.register({ id: "page", area: sdk.ROUTES_AREA, data: { path: ROUTE }, render: () => /* @__PURE__ */ jsx9(Gallery, {}) });
     ctx.registerMany(paletteCommands());
-    ctx.register({ id: "chip", area: sdk.STATUSBAR_AREAS.right, order: 140, render: () => /* @__PURE__ */ jsx8(StatusChip, {}) });
+    ctx.register({ id: "chip", area: sdk.STATUSBAR_AREAS.right, order: 140, render: () => /* @__PURE__ */ jsx9(StatusChip, {}) });
     if (sdk.APPEARANCE_AREAS && sdk.APPEARANCE_AREAS.extra) {
-      ctx.register({ id: "appearance", area: sdk.APPEARANCE_AREAS.extra, render: () => /* @__PURE__ */ jsx8(AppearanceCard, {}) });
+      ctx.register({ id: "appearance", area: sdk.APPEARANCE_AREAS.extra, render: () => /* @__PURE__ */ jsx9(AppearanceCard, {}) });
     }
     if (typeof sdk.TRANSCRIPT_DIRECTIVE_AREA === "string") {
       ctx.register({
         id: "theme-card",
         area: sdk.TRANSCRIPT_DIRECTIVE_AREA,
-        data: { name: "aether-theme", render: (props) => /* @__PURE__ */ jsx8(ThemeCardDirective, { ...props }) }
+        data: { name: "aether-theme", render: (props) => /* @__PURE__ */ jsx9(ThemeCardDirective, { ...props }) }
       });
     }
     if (ctx.registerSettingsPage) {
-      ctx.registerSettingsPage({ id: "settings", title: "Aether", icon: "sparkle", render: () => /* @__PURE__ */ jsx8(SettingsPage, {}) });
+      ctx.registerSettingsPage({ id: "settings", title: "Aether", icon: "sparkle", render: () => /* @__PURE__ */ jsx9(SettingsPage, {}) });
     }
     wireSync(ctx);
+    wireCommunity(ctx);
     sync();
   }
 };

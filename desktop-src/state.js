@@ -11,6 +11,7 @@ export const SAVED_KEY = 'saved.v1'
 export const PREVIOUS_KEY = 'previous.v1'
 export const SEEN_PENDING_KEY = 'pending-seen.v1'
 export const UNDO_KEY = 'undo.v1'
+export const RECOLOURS_KEY = 'recolours.v1'
 
 export const DEFAULT_SETTINGS = {
   motion: 'full', // full | calm | still
@@ -36,6 +37,15 @@ export const $agentHalf = sdk.atom(null)
 /** The slug whose colours the editor is open on, or '' when it is closed. */
 export const $editing = sdk.atom('')
 
+/** Every theme Hermes Desktop lists ({ name, label, description }), published by the backdrop host. */
+export const $themeList = sdk.atom([])
+/** Which installed plugin made each theme Aether does not recognise, as the agent half read it. */
+export const $community = sdk.atom({ themes: {}, plugins: {} })
+/** Accent recolours of other creators' themes, saved on this computer: name -> DesktopTheme. */
+export const $recolours = sdk.atom({})
+/** The recolour dialog: `{ name, hex }` for the other creator's theme it is open on, or null. */
+export const $recolouring = sdk.atom(null)
+
 export function openEditor(slug) {
   $editing.set(typeof slug === 'string' ? slug : '')
 }
@@ -55,6 +65,45 @@ export function bindStorage(ctxStorage) {
   $settings.set({ ...DEFAULT_SETTINGS, ...(settings && typeof settings === 'object' ? settings : {}) })
   const saved = storage.get(SAVED_KEY, {})
   $saved.set(saved && typeof saved === 'object' ? sanitizeSaved(saved) : {})
+  const recolours = storage.get(RECOLOURS_KEY, {})
+  $recolours.set(recolours && typeof recolours === 'object' ? sanitizeRecolours(recolours) : {})
+}
+
+const ACCENT_NAME = /^(.+)-accent-([0-9a-f]{6})$/
+
+/** `{ base, hex }` for a saved accent's name (`<base>-accent-<hex>`, Hermes's own naming), else null. */
+export function accentParts(name) {
+  const match = ACCENT_NAME.exec(typeof name === 'string' ? name : '')
+  return match ? { base: match[1], hex: `#${match[2]}` } : null
+}
+
+function isRecolour(theme) {
+  const parts = theme && accentParts(theme.name)
+  const colors = theme && theme.colors
+  return Boolean(parts) && theme.accentOf === parts.base && typeof theme.label === 'string' && colors &&
+    ['background', 'foreground', 'primary'].every(key => typeof colors[key] === 'string')
+}
+
+function sanitizeRecolours(map) {
+  const out = {}
+  for (const [name, theme] of Object.entries(map)) if (isRecolour(theme) && theme.name === name) out[name] = theme
+  return out
+}
+
+export function rememberRecolour(theme) {
+  if (!isRecolour(theme)) return false
+  const next = { ...$recolours.get(), [theme.name]: theme }
+  $recolours.set(next)
+  if (storage) storage.set(RECOLOURS_KEY, next)
+  return true
+}
+
+export function forgetRecolour(name) {
+  const next = { ...$recolours.get() }
+  if (!next[name]) return
+  delete next[name]
+  $recolours.set(next)
+  if (storage) storage.set(RECOLOURS_KEY, next)
 }
 
 function isRecord(r) {

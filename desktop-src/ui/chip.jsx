@@ -6,7 +6,7 @@ import { useState } from 'react'
 import { sdk } from '../sdk.js'
 
 import { $active, openEditor } from '../state.js'
-import { turnOff } from '../sync.js'
+import { openSettings, turnOff } from '../sync.js'
 import { MotionControl, StrengthControl } from './settings.jsx'
 import { Styles } from './styles.js'
 
@@ -45,6 +45,9 @@ export function StatusChip() {
               Off
             </sdk.Button>
           </div>
+          <sdk.Button className="ae-pop-settings" onClick={run(openSettings)} size="sm" variant="ghost">
+            <sdk.Codicon name="settings-gear" /> All Aether settings
+          </sdk.Button>
         </div>
       </sdk.PopoverContent>
     </sdk.Popover>

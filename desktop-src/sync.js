@@ -54,7 +54,7 @@ export function registerThemes(catalog) {
   }
 }
 
-function request(name, theme, attempt = 0) {
+export function request(name, theme, attempt = 0) {
   if (sdk.requestTheme(name)) return true
   // The registration lands on the next registry tick; a fresh theme can need one more frame.
   if (attempt < 8 && ctxRef) ctxRef.setTimeout(() => request(name, theme, attempt + 1), 40)
@@ -189,4 +189,9 @@ export function wireSync(ctx) {
     for (const entry of registered.values()) entry.dispose()
     registered.clear()
   })
+}
+
+/** Straight to Aether's own page in Settings > Plugins, from anywhere in the app. */
+export function openSettings() {
+  sdk.host.navigate(sdk.pluginSettingsHref ? sdk.pluginSettingsHref(PLUGIN_ID) : '/settings')
 }

@@ -12,6 +12,7 @@ import logging
 from functools import lru_cache
 from typing import Any, Dict, List, Optional
 
+from . import _community as community
 from . import _store as store
 from ._base import avoid_preset_names, compose, plain
 from ._spec import ENGINES, FINISHES, FONTS, PATTERNS, SpecError, normalize, slugify
@@ -297,6 +298,15 @@ class Runtime:
     def rpc_delete(self, params: Any = None, **kwargs: Any) -> Dict[str, Any]:
         slug = (params or {}).get("slug") if isinstance(params, dict) else None
         return {"ok": bool(slug) and store.delete(str(slug))}
+
+    def rpc_community(self, params: Any = None, **kwargs: Any) -> Dict[str, Any]:
+        """Which installed plugin made each of the Desktop's theme names, with its author and picture."""
+        names = (params or {}).get("names") if isinstance(params, dict) else None
+        try:
+            return {"ok": True, **community.attribute(names)}
+        except Exception:  # an unreadable plugin folder must never break the gallery
+            logger.debug("aether: community lookup failed", exc_info=True)
+            return {"ok": False, "themes": {}, "plugins": {}}
 
     # ── /aether ───────────────────────────────────────────────────────────────────────────────
 

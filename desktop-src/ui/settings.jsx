@@ -131,7 +131,7 @@ export function SettingsPage() {
             Open gallery
           </sdk.Button>
         }
-        description="Presets, themes Hermes made for you, and a box to describe a new one."
+        description="Presets, themes Hermes made for you, themes from other creators you have installed, and a box to describe a new one."
         title="Theme gallery"
       />
     </div>

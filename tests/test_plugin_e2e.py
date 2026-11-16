@@ -56,7 +56,8 @@ def test_registers_tools_command_rpc_and_skill(manager):
     _tool(manager, "aether_theme")
     _tool(manager, "aether_gallery")
     assert "aether" in manager._plugin_commands
-    assert {"plugin.aether.state", "plugin.aether.ack", "plugin.aether.delete"} <= set(manager._plugin_rpc_methods)
+    assert {"plugin.aether.state", "plugin.aether.ack", "plugin.aether.delete",
+            "plugin.aether.community"} <= set(manager._plugin_rpc_methods)
     assert manager.list_plugin_skills("aether") == ["theme-design"]
 
 

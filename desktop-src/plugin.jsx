@@ -18,16 +18,19 @@ import {
   $catalog,
   $paintedName,
   $settings,
+  $themeList,
   $themeName,
   bindStorage,
   updateSettings
 } from './state.js'
+import { refreshFromBase, wireCommunity } from './community.js'
 import { applyRecord, bindSync, registerThemes, sync, turnOff, wireSync } from './sync.js'
 import { ThemeCardDirective } from './ui/card.jsx'
 import { StatusChip } from './ui/chip.jsx'
 import { EditorHost } from './ui/editor.jsx'
 import { Gallery } from './ui/gallery.jsx'
 import { ScenePreview } from './ui/preview.jsx'
+import { RecolourHost } from './ui/recolour.jsx'
 import { MotionControl, SettingsPage } from './ui/settings.jsx'
 import { Styles } from './ui/styles.js'
 
@@ -37,7 +40,7 @@ const ROUTE = '/aether'
 const baseName = name => String(name || '').replace(/-(light|dark)$/, '')
 
 function BackdropHost() {
-  const { theme, themeName } = sdk.useTheme()
+  const { theme, themeName, availableThemes } = sdk.useTheme()
   const active = sdk.useValue($active)
   const settings = sdk.useValue($settings)
   const painted = baseName(theme && theme.name)
@@ -50,13 +53,29 @@ function BackdropHost() {
     $paintedName.set(painted)
   }, [painted])
 
+  // Every theme Hermes lists, for the gallery's "From other creators" section.
+  useEffect(() => {
+    if (Array.isArray(availableThemes)) $themeList.set(availableThemes)
+  }, [availableThemes])
+
+  // A creator's theme painted as they made it keeps your recolours of it in step with their latest styles.
+  useEffect(() => {
+    if (theme && !(sdk.$accentOverride && sdk.$accentOverride.get())) refreshFromBase(theme, painted)
+  }, [theme, painted])
+
   useEffect(() => {
     if (active) backdrop.show(active, settings)
     else backdrop.hide()
   }, [active, settings])
 
-  // The colour editor lives here too: this slot is always mounted, and the dialog portals out of it.
-  return <EditorHost />
+  // The colour editor and the recolour dialog live here too: this slot is always mounted, and the dialogs
+  // portal out of it.
+  return (
+    <>
+      <EditorHost />
+      <RecolourHost />
+    </>
+  )
 }
 
 function AppearanceCard() {
@@ -161,6 +180,7 @@ export default {
     }
 
     wireSync(ctx)
+    wireCommunity(ctx)
     sync()
   }
 }
