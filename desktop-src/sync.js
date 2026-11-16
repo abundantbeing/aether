@@ -125,6 +125,11 @@ function handleEvent(event) {
 }
 
 let syncing = null
+// A plugin RPC can fail for a moment right after the window reloads or reconnects. Retry a few times, further
+// apart each time, before treating the agent half as missing (the editor is read-only without it).
+let retryCtx = null
+let retries = 0
+const MAX_RETRIES = 6
 
 export function sync() {
   if (syncing) return syncing
@@ -132,6 +137,7 @@ export function sync() {
     try {
       const state = await sdk.host.request(`plugin.${PLUGIN_ID}.state`, {})
       $agentHalf.set(true)
+      retries = 0
       if (state && Array.isArray(state.themes)) {
         rememberRecords(state.themes)
         registerThemes($catalog.get())
@@ -146,6 +152,10 @@ export function sync() {
     } catch {
       // Method not found: the agent half is not enabled for this profile. Presets still work.
       $agentHalf.set(false)
+      if (retryCtx && retries < MAX_RETRIES) {
+        retries += 1
+        retryCtx.setTimeout(() => sync(), 700 * retries)
+      }
     } finally {
       syncing = null
     }
@@ -154,6 +164,8 @@ export function sync() {
 }
 
 export function wireSync(ctx) {
+  retryCtx = ctx
+  retries = 0
   ctx.onEvent(`plugin.${PLUGIN_ID}.theme`, handleEvent)
   ctx.onEvent('tool.complete', event => {
     const p = (event && event.payload) || {}
@@ -173,6 +185,7 @@ export function wireSync(ctx) {
   ctx.onDispose(unGateway)
   ctx.onDispose(unProfile)
   ctx.onDispose(() => {
+    retryCtx = null
     for (const entry of registered.values()) entry.dispose()
     registered.clear()
   })

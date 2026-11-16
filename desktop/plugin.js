@@ -4531,12 +4531,16 @@ function handleEvent(event) {
   else if (payload.action === "off") turnOff();
 }
 var syncing = null;
+var retryCtx = null;
+var retries = 0;
+var MAX_RETRIES = 6;
 function sync() {
   if (syncing) return syncing;
   syncing = (async () => {
     try {
       const state = await sdk.host.request(`plugin.${PLUGIN_ID}.state`, {});
       $agentHalf.set(true);
+      retries = 0;
       if (state && Array.isArray(state.themes)) {
         rememberRecords(state.themes);
         registerThemes($catalog.get());
@@ -4551,6 +4555,10 @@ function sync() {
       }
     } catch {
       $agentHalf.set(false);
+      if (retryCtx && retries < MAX_RETRIES) {
+        retries += 1;
+        retryCtx.setTimeout(() => sync(), 700 * retries);
+      }
     } finally {
       syncing = null;
     }
@@ -4558,6 +4566,8 @@ function sync() {
   return syncing;
 }
 function wireSync(ctx) {
+  retryCtx = ctx;
+  retries = 0;
   ctx.onEvent(`plugin.${PLUGIN_ID}.theme`, handleEvent);
   ctx.onEvent("tool.complete", (event) => {
     const p = event && event.payload || {};
@@ -4577,6 +4587,7 @@ function wireSync(ctx) {
   ctx.onDispose(unGateway);
   ctx.onDispose(unProfile);
   ctx.onDispose(() => {
+    retryCtx = null;
     for (const entry of registered.values()) entry.dispose();
     registered.clear();
   });
