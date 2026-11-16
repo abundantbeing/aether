@@ -66,6 +66,8 @@ FINISHES: Dict[str, str] = {
     "pixel": "chunky mosaic pixels without dithering",
 }
 PATTERNS = ("bayer4", "bayer8", "bayer2", "noise")
+# Each style's default cell size in CSS pixels; a style not listed uses 2.
+FINISH_PIXEL: Dict[str, int] = {"dither": 3, "pixel": 6, "halftone": 7, "ascii": 12, "braille": 12, "scanlines": 3, "crt": 3}
 
 # key -> (CSS family, stylesheet URL or None when the font ships with the app)
 FONTS: Dict[str, Optional[Tuple[str, Optional[str]]]] = {
@@ -171,7 +173,7 @@ def _finish(raw: Any, notes: List[str]) -> Dict[str, Any]:
     pattern = str(raw.get("pattern") or "bayer4").strip().lower()
     if pattern not in PATTERNS:
         raise SpecError(f"finish.pattern must be one of {', '.join(PATTERNS)}")
-    default_pixel = {"dither": 3, "pixel": 6, "halftone": 7, "ascii": 12, "braille": 12, "scanlines": 3, "crt": 3}.get(style, 2)
+    default_pixel = FINISH_PIXEL.get(style, 2)
     return {
         "style": style,
         "pixel": int(round(_num(raw.get("pixel"), default_pixel, 1, 24, "finish.pixel", notes))),
