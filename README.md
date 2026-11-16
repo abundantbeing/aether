@@ -14,7 +14,7 @@ Screenshots show the actual plugin in the Hermes Webapp (the Desktop renderer in
 - **Eighteen scenes worth looking at.** Landscapes, skies, space, a city and the Hermes brand itself, each animated, most of them dithered.
 - **Twenty-four scene engines, ten finishes.** A Greek temple, wings in flight, mountains, auroras, cloud seas, moonlit water, dunes, black holes, planets, skylines, blossoms, engraved rays and more, printed smooth, dithered (Bayer 2x2, 4x4, 8x8 or blue noise, down to one bit), as halftone dots, in ascii, in braille, with film grain, scanlines, a full CRT (phosphor mask, colour fringing, curved glass), occasional glitch bursts, or as chunky pixels.
 - **Make any theme yours.** Open any preset or saved theme in the editor and change its colours, put any of the ten finishes on it, or press **Randomize colours** for a new palette that follows colour theory and keeps the theme's light and dark.
-- **It reacts to you.** The scene bends gently around your pointer like a lens drifting under glass, then settles when you stop to read. Switching themes dissolves one scene into the next.
+- **It reacts to you.** While your pointer moves, the scene responds in a way that suits it: bending like a lens under glass, rippling like water (clicks send out rings), being drawn into a gravity well, parting around the pointer, or being blown along by it. Auto picks one per scene (water ripples, the black hole pulls, petals, sparks and falling characters are pushed aside, wings, clouds and dunes are blown, everything else bends), or you choose one. Every effect fades when you stop to read, and none adds more light than the scene's own brightest colour. Switching themes dissolves one scene into the next.
 - **Text stays readable, always.** Every theme is held to a floor: body text 7:1 on its background, secondary text 4.5:1, accents 3:1, and body text 4.5:1 over the brightest part of the moving scene once the glass veil is laid over it. When a request would break that, Aether moves the colour (hue kept) or thickens the veil and says exactly what it changed.
 - **Your call on intensity.** Scene strength is Balanced by default (the readability floor), Vivid when you want the scene first, Calm for long reading sessions.
 - **A real theme, not a wallpaper.** Each Aether theme registers with Hermes Desktop like a built-in: it shows in Settings, Appearance, the theme picker and `/skin`, it is remembered per profile, and picking any other theme removes the scene.
@@ -79,7 +79,7 @@ Use the same Hermes profile for installation and Desktop. No API keys or extra s
 - **Slash command.** `/aether` opens a picker, `/aether event horizon` applies one, `/aether off` returns to your previous theme, `/aether list` lists everything.
 - **From another app.** Ask from Telegram or the CLI and the theme is saved; Hermes Desktop applies it the next time it connects to that profile.
 - **The status chip.** While a scene is on, the status bar shows its name. Click it for motion, scene strength, the gallery and Off.
-- **Settings, Plugins, Aether.** Motion, scene strength, reduced motion, pointer reaction, pausing in the background, quality, and whether theme changes are announced.
+- **Settings, Plugins, Aether.** Motion, scene strength, reduced motion, pointer reaction (Auto, Lens, Ripples, Gravity well, Repel, Wind or Off), pausing in the background, quality, and whether theme changes are announced.
 
 ![The /aether slash command applying Event Horizon](docs/screenshots/slash-command.png)
 
@@ -121,7 +121,7 @@ Every scene is a fixed shader that ships with the plugin; the agent only chooses
 
 - **No network calls of its own, no telemetry, no credentials.** The Desktop half talks only to your configured Hermes backend through the plugin SDK.
 - **Fonts.** A theme may pick one of five UI fonts. Choosing Inter, IBM Plex Sans, Space Grotesk or Courier Prime loads that font from Google Fonts through Hermes Desktop's own theme typography, the same way Hermes's built-in themes load Courier Prime. JetBrains Mono ships with the app. The default keeps your current font and loads nothing.
-- **Pointer.** With pointer reaction on, the Desktop half listens to pointer movement inside the Hermes window to bend the scene. Nothing is recorded or sent anywhere.
+- **Pointer.** With pointer reaction on, the Desktop half listens to pointer movement inside the Hermes window, and to clicks when the mode uses them (Ripples and Repel, not at Battery quality), to move the scene. The listeners are passive and never block or change a click. Nothing is recorded or sent anywhere, and clicks are kept only as a position and a time for about two seconds.
 - **Stored data:** themes Hermes made, in `<hermes home>/plugin-data/aether/themes.json` for each profile. Desktop preferences (motion, strength, quality) and a cache of seen themes are in the app's own plugin storage on your machine.
 - **Desktop surface:** only the documented SDK (`ctx.register`, `ctx.registerSettingsPage`, `ctx.onEvent`, `ctx.storage`, `ctx.setTimeout`, `ctx.addEventListener`, `host.request`, `host.composer`, `host.notify`, `requestTheme`, `useTheme`, `createBudgetedLoop`, `DecodeText`, `Dialog` and `Input` (the editor), the `titleBar.center` and `statusBar.right` slots, `THEMES_AREA`, `TRANSCRIPT_DIRECTIVE_AREA`). While a scene is on, it adds one fixed layer behind the window and one style tag that applies Desktop's own Window Glass transparent-surface rules under its own `data-aether-backdrop` attribute. The app shell is found only through `[data-contrib-shell]`, the documented window-glass hook; no app-internal markup is named. Turning the theme off or disabling the plugin removes all three.
 - **No tools beyond its own two, no hooks, no shell commands, no background processes, no self-update, no binaries, no third-party code.**
@@ -152,12 +152,13 @@ cd tests && python -m pytest -q
 hermes plugins validate .
 ```
 
-`tests/shaders.mjs` compiles every engine and finish pair (240 programs) in headless Chromium and checks each paints more than one colour. `tests/harmony.mjs` rolls Randomize 150 times on every preset and checks each roll keeps the theme's lightness, stays on its harmony's hues and keeps vivid colours vivid. `tests/render_presets.mjs` and `tests/render_scenes.mjs` render presets or any scene spec to PNG for art direction.
+`tests/shaders.mjs` compiles every engine and finish pair (240 programs) in headless Chromium and checks each paints more than one colour. It also paints every pointer mode on every engine and checks the frame changes while the pointer moves, is identical to the untouched scene at rest, and never goes brighter than the scene's top colour. `tests/harmony.mjs` rolls Randomize 150 times on every preset and checks each roll keeps the theme's lightness, stays on its harmony's hues and keeps vivid colours vivid. `tests/render_presets.mjs` and `tests/render_scenes.mjs` render presets or any scene spec to PNG for art direction.
 
-`tests/render_frames.mjs` renders any preset (or `all` of them, or a scene spec) as a frame-exact PNG sequence for video, up to 4K, with optional finish override, glass veil and a scripted pointer sweep:
+`tests/render_frames.mjs` renders any preset (or `all` of them, or a scene spec) as a frame-exact PNG sequence for video, up to 4K, with optional finish override, glass veil and a scripted pointer sweep (`--pointer sweep`, with `--interaction auto|lens|ripples|well|repel|wind|off`, `--clicks 0.5,1.2` for scripted clicks in seconds, and `--move` / `--hold` to stop the pointer and watch the effect relax):
 
 ```bash
 node tests/render_frames.mjs "Event Horizon" out --width 3840 --height 2160 --scale 2 --fps 60 --seconds 10 --pointer sweep
+node tests/render_frames.mjs Selene out --pointer sweep --interaction ripples --clicks 0.5,1.2 --move 1 --hold 0 --seconds 3
 ffmpeg -framerate 60 -i out/event-horizon/%05d.png -c:v libx264 -crf 12 -preset slow -pix_fmt yuv420p event-horizon.mp4
 ```
 
