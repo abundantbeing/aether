@@ -13,6 +13,7 @@ Screenshots show the actual plugin in the Hermes Webapp (the Desktop renderer in
 - **Ask for any look.** Describe a mood, a place, a palette or a texture in any chat. Hermes picks the scene, the colours and the finish, calls `aether_theme`, and the window you are chatting in repaints a moment later. Ask for changes the same way ("slower", "more violet", "less busy").
 - **Eighteen scenes worth looking at.** Landscapes, skies, space, a city and the Hermes brand itself, each animated, most of them dithered.
 - **Twenty-four scene engines, ten finishes.** A Greek temple, wings in flight, mountains, auroras, cloud seas, moonlit water, dunes, black holes, planets, skylines, blossoms, engraved rays and more, printed smooth, dithered (Bayer 2x2, 4x4, 8x8 or blue noise, down to one bit), as halftone dots, in ascii, in braille, with film grain, scanlines, a full CRT (phosphor mask, colour fringing, curved glass), occasional glitch bursts, or as chunky pixels.
+- **Make any theme yours.** Open any preset or saved theme in the editor and change its colours, put any of the ten finishes on it, or press **Randomize colours** for a new palette that follows colour theory and keeps the theme's light and dark.
 - **It reacts to you.** The scene bends gently around your pointer like a lens drifting under glass, then settles when you stop to read. Switching themes dissolves one scene into the next.
 - **Text stays readable, always.** Every theme is held to a floor: body text 7:1 on its background, secondary text 4.5:1, accents 3:1, and body text 4.5:1 over the brightest part of the moving scene once the glass veil is laid over it. When a request would break that, Aether moves the colour (hue kept) or thickens the veil and says exactly what it changed.
 - **Your call on intensity.** Scene strength is Balanced by default (the readability floor), Vivid when you want the scene first, Calm for long reading sessions.
@@ -82,11 +83,17 @@ Use the same Hermes profile for installation and Desktop. No API keys or extra s
 
 ![The /aether slash command applying Event Horizon](docs/screenshots/slash-command.png)
 
-### Changing a theme's colours
+### Customising a theme
 
-Every card in the gallery has a **Colours** button (so does the status chip, for the theme that is on). It opens an editor with the theme's background, accent, text and 2 to 5 scene colours, and a live preview of the scene. As you change them, Aether checks readability exactly as it does for Hermes's themes and says in plain words what it had to move, for example an accent lightened so it stays visible. **Save and apply** keeps the result for this profile: a preset becomes "Selene (custom)" next to the original, and a theme of your own is updated in place. You can also just ask: "Selene, but gold" starts from Selene and changes only the colours. Saving needs the Agent half; without it the editor shows the colours read-only.
+Every card in the gallery has a **Customise** button (so does the status chip, for the theme that is on). It opens an editor with a live preview of the scene and three ways to change it:
 
-![Olympus recoloured in Tyrian purple, with the readability notes in plain words](docs/screenshots/colour-editor.png)
+- **Colours.** The theme's background, accent, text and 2 to 5 scene colours, each with a picker and a hex field.
+- **Finish.** Any of the ten finishes on any scene: Smooth, Dither, Halftone, ASCII, Braille, Pixel, CRT, Scanlines, Glitch or Grain, with a size slider for the finishes made of cells or dots and the four dither patterns. Olympus in braille, Talaria in halftone, Event Horizon on a CRT: every pairing works.
+- **Randomize colours.** A new palette from one colour harmony (analogous, complementary, split complementary, triadic or monochrome) around a random hue. Each colour keeps its lightness and vividness, so the dark stays dark, the highlight stays bright, and the result still feels like the theme it came from. Hues are chosen where the screen can show them at full strength, so a vivid colour never turns muddy. Each roll starts from the theme as you opened it, and the editor names the harmony it used.
+
+As you change anything, Aether checks readability exactly as it does for Hermes's themes and says in plain words what it had to move, for example an accent lightened so it stays visible or the glass thickened for a busier finish. **Save and apply** keeps the result for this profile: a preset becomes "Selene (custom)" next to the original (or "Talaria, halftone" when only the finish changed), and a theme of your own is updated in place. You can also just ask: "Selene, but gold" or "Talaria, but halftone" starts from that theme and changes only what you name. Saving needs the Agent half; without it the editor is read-only.
+
+![Talaria with randomized analogous reds in the ASCII finish, in the editor](docs/screenshots/customise.png)
 
 ## How it works
 
@@ -96,7 +103,7 @@ flowchart LR
     T["aether_theme / aether_gallery<br/>/aether"] --> N["normalize: palette from seeds,<br/>readability floor, scene clamps,<br/>SVG guard"]
     N --> S[("plugin-data/aether/themes.json<br/>(per profile)")]
     N -- "ctx.emit_to_session<br/>plugin.aether.theme" --> E
-    R["RPC plugin.aether.state / ack / delete<br/>preview / save (colour editor)"] --- S
+    R["RPC plugin.aether.state / ack / delete<br/>preview / save (editor)"] --- S
   end
   subgraph Desktop["Hermes Desktop (desktop/plugin.js)"]
     E["session event"] --> A["THEMES_AREA + requestTheme"]
@@ -116,7 +123,7 @@ Every scene is a fixed shader that ships with the plugin; the agent only chooses
 - **Fonts.** A theme may pick one of five UI fonts. Choosing Inter, IBM Plex Sans, Space Grotesk or Courier Prime loads that font from Google Fonts through Hermes Desktop's own theme typography, the same way Hermes's built-in themes load Courier Prime. JetBrains Mono ships with the app. The default keeps your current font and loads nothing.
 - **Pointer.** With pointer reaction on, the Desktop half listens to pointer movement inside the Hermes window to bend the scene. Nothing is recorded or sent anywhere.
 - **Stored data:** themes Hermes made, in `<hermes home>/plugin-data/aether/themes.json` for each profile. Desktop preferences (motion, strength, quality) and a cache of seen themes are in the app's own plugin storage on your machine.
-- **Desktop surface:** only the documented SDK (`ctx.register`, `ctx.registerSettingsPage`, `ctx.onEvent`, `ctx.storage`, `ctx.setTimeout`, `ctx.addEventListener`, `host.request`, `host.composer`, `host.notify`, `requestTheme`, `useTheme`, `createBudgetedLoop`, `DecodeText`, `Dialog` and `Input` (the colour editor), the `titleBar.center` and `statusBar.right` slots, `THEMES_AREA`, `TRANSCRIPT_DIRECTIVE_AREA`). While a scene is on, it adds one fixed layer behind the window and one style tag that applies Desktop's own Window Glass transparent-surface rules under its own `data-aether-backdrop` attribute. The app shell is found only through `[data-contrib-shell]`, the documented window-glass hook; no app-internal markup is named. Turning the theme off or disabling the plugin removes all three.
+- **Desktop surface:** only the documented SDK (`ctx.register`, `ctx.registerSettingsPage`, `ctx.onEvent`, `ctx.storage`, `ctx.setTimeout`, `ctx.addEventListener`, `host.request`, `host.composer`, `host.notify`, `requestTheme`, `useTheme`, `createBudgetedLoop`, `DecodeText`, `Dialog` and `Input` (the editor), the `titleBar.center` and `statusBar.right` slots, `THEMES_AREA`, `TRANSCRIPT_DIRECTIVE_AREA`). While a scene is on, it adds one fixed layer behind the window and one style tag that applies Desktop's own Window Glass transparent-surface rules under its own `data-aether-backdrop` attribute. The app shell is found only through `[data-contrib-shell]`, the documented window-glass hook; no app-internal markup is named. Turning the theme off or disabling the plugin removes all three.
 - **No tools beyond its own two, no hooks, no shell commands, no background processes, no self-update, no binaries, no third-party code.**
 
 ## Compatibility and known limits
@@ -135,7 +142,7 @@ The Desktop half is written in `desktop-src/` and bundled with esbuild into `des
 ```bash
 npm install
 npm run build                 # presets + desktop/plugin.js
-npm run check                 # presets in sync, house lint, every shader compiles and paints
+npm run check                 # presets in sync, colour harmonies, house lint, every shader compiles and paints
 
 # Python: contract tests (including 300 fuzzed themes) and end-to-end tests through Hermes's real
 # plugin discovery
@@ -145,7 +152,7 @@ cd tests && python -m pytest -q
 hermes plugins validate .
 ```
 
-`tests/shaders.mjs` compiles every engine and finish pair (240 programs) in headless Chromium and checks each paints more than one colour. `tests/render_presets.mjs` and `tests/render_scenes.mjs` render presets or any scene spec to PNG for art direction.
+`tests/shaders.mjs` compiles every engine and finish pair (240 programs) in headless Chromium and checks each paints more than one colour. `tests/harmony.mjs` rolls Randomize 150 times on every preset and checks each roll keeps the theme's lightness, stays on its harmony's hues and keeps vivid colours vivid. `tests/render_presets.mjs` and `tests/render_scenes.mjs` render presets or any scene spec to PNG for art direction.
 
 `tests/render_frames.mjs` renders any preset (or `all` of them, or a scene spec) as a frame-exact PNG sequence for video, up to 4K, with optional finish override, glass veil and a scripted pointer sweep:
 
