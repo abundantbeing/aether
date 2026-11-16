@@ -206,11 +206,10 @@ def theme_plugins() -> List[Dict[str, Any]]:
 
 
 def _cli_skins() -> set:
+    """The profile's own CLI skins (``<hermes home>/skins/*.yaml``): themes, but nobody's plugin."""
     try:
-        from hermes_cli.skin_engine import list_skins
-
-        return {str(row.get("name")) for row in list_skins() if isinstance(row, dict)}
-    except Exception:
+        return {p.stem for p in (_home() / "skins").glob("*.y*ml")}
+    except OSError:
         return set()
 
 
