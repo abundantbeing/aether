@@ -20,6 +20,10 @@ export const CSS = `
 .ae-shot-dot { width: 14px; height: 14px; border-radius: 99px; box-shadow: inset 0 0 0 1px rgb(255 255 255 / 0.35); }
 .ae-card-by { font-size: 0.75rem; color: var(--ui-text-tertiary); }
 .ae-pop-settings { align-self: flex-start; }
+.ae-rc-title { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.ae-rc-exp { font-size: 0.6875rem; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase; line-height: 1;
+  padding: 4px 8px; border-radius: 99px; color: var(--ui-text-secondary); background: var(--ui-bg-quaternary);
+  box-shadow: inset 0 0 0 1px var(--ui-stroke-secondary); }
 .ae-rc { display: flex; flex-direction: column; gap: 16px; width: min(440px, 84vw); text-align: left; }
 .ae-rc-swatches { display: flex; flex-wrap: wrap; gap: 10px; }
 .ae-rc-sw { width: 32px; height: 32px; border-radius: 99px; border: 0; cursor: pointer; padding: 0;

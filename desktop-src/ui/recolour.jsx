@@ -124,10 +124,16 @@ function Recolour({ name, start }) {
     >
       <Styles />
       <sdk.DialogHeader>
-        <sdk.DialogTitle>Recolour: {base.label}</sdk.DialogTitle>
+        <sdk.DialogTitle className="ae-rc-title">
+          Recolour: {base.label}
+          <span className="ae-rc-exp" title="Recolouring other creators' themes is experimental">
+            Experimental
+          </span>
+        </sdk.DialogTitle>
         <sdk.DialogDescription>
           Pick a new accent for buttons, links and highlights. Everything else stays as its creator made it, and the
-          recolour is saved only on this computer.
+          recolour is saved only on this computer. Recolouring other creators' themes is experimental: if anything looks
+          off, delete the recolour to go back to the original.
         </sdk.DialogDescription>
       </sdk.DialogHeader>
       <div className="ae-rc">

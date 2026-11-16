@@ -4987,6 +4987,10 @@ var CSS2 = `
 .ae-shot-dot { width: 14px; height: 14px; border-radius: 99px; box-shadow: inset 0 0 0 1px rgb(255 255 255 / 0.35); }
 .ae-card-by { font-size: 0.75rem; color: var(--ui-text-tertiary); }
 .ae-pop-settings { align-self: flex-start; }
+.ae-rc-title { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.ae-rc-exp { font-size: 0.6875rem; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase; line-height: 1;
+  padding: 4px 8px; border-radius: 99px; color: var(--ui-text-secondary); background: var(--ui-bg-quaternary);
+  box-shadow: inset 0 0 0 1px var(--ui-stroke-secondary); }
 .ae-rc { display: flex; flex-direction: column; gap: 16px; width: min(440px, 84vw); text-align: left; }
 .ae-rc-swatches { display: flex; flex-wrap: wrap; gap: 10px; }
 .ae-rc-sw { width: 32px; height: 32px; border-radius: 99px; border: 0; cursor: pointer; padding: 0;
@@ -6080,11 +6084,12 @@ function Recolour({ name, start }) {
       children: [
         /* @__PURE__ */ jsx8(Styles, {}),
         /* @__PURE__ */ jsxs6(sdk.DialogHeader, { children: [
-          /* @__PURE__ */ jsxs6(sdk.DialogTitle, { children: [
+          /* @__PURE__ */ jsxs6(sdk.DialogTitle, { className: "ae-rc-title", children: [
             "Recolour: ",
-            base.label
+            base.label,
+            /* @__PURE__ */ jsx8("span", { className: "ae-rc-exp", title: "Recolouring other creators' themes is experimental", children: "Experimental" })
           ] }),
-          /* @__PURE__ */ jsx8(sdk.DialogDescription, { children: "Pick a new accent for buttons, links and highlights. Everything else stays as its creator made it, and the recolour is saved only on this computer." })
+          /* @__PURE__ */ jsx8(sdk.DialogDescription, { children: "Pick a new accent for buttons, links and highlights. Everything else stays as its creator made it, and the recolour is saved only on this computer. Recolouring other creators' themes is experimental: if anything looks off, delete the recolour to go back to the original." })
         ] }),
         /* @__PURE__ */ jsxs6("div", { className: "ae-rc", children: [
           /* @__PURE__ */ jsx8("div", { "aria-label": "Accent colours", className: "ae-rc-swatches", role: "radiogroup", children: SWATCHES.map((s) => {
