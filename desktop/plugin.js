@@ -3844,6 +3844,58 @@ var PRESETS = [
     "order": 17
   }
 ];
+var FINISHES = [
+  {
+    "style": "none",
+    "description": "smooth colour",
+    "pixel": 2
+  },
+  {
+    "style": "dither",
+    "description": "ordered (Bayer) dithering to the scene colours, crisp pixels",
+    "pixel": 3
+  },
+  {
+    "style": "halftone",
+    "description": "printed dots sized by brightness",
+    "pixel": 7
+  },
+  {
+    "style": "ascii",
+    "description": "the scene drawn in text characters",
+    "pixel": 12
+  },
+  {
+    "style": "grain",
+    "description": "smooth colour with film grain",
+    "pixel": 2
+  },
+  {
+    "style": "braille",
+    "description": "the scene drawn in braille dots, dithered",
+    "pixel": 12
+  },
+  {
+    "style": "scanlines",
+    "description": "smooth colour with scanlines",
+    "pixel": 3
+  },
+  {
+    "style": "crt",
+    "description": "an old monitor: scanlines, phosphor mask, colour fringing, curved glass",
+    "pixel": 3
+  },
+  {
+    "style": "glitch",
+    "description": "clean, with brief signal-loss bursts every few seconds",
+    "pixel": 2
+  },
+  {
+    "style": "pixel",
+    "description": "chunky mosaic pixels without dithering",
+    "pixel": 6
+  }
+];
 
 // desktop-src/state.js
 var SETTINGS_KEY = "settings.v1";
@@ -4593,6 +4645,18 @@ var CSS2 = `
 .ae-sw-x { grid-column: 4; width: 22px; height: 22px; border: 0; border-radius: 6px; cursor: pointer; display: inline-flex;
   align-items: center; justify-content: center; background: transparent; color: var(--ui-text-tertiary); }
 .ae-sw-x:hover { color: var(--ui-text-primary); background: var(--ui-bg-quaternary); }
+.ae-ed-roll { align-self: flex-start; }
+.ae-fin { display: flex; flex-wrap: wrap; gap: 4px; }
+.ae-fin-opt { font: inherit; font-size: 0.75rem; line-height: 1; padding: 6px 9px; border-radius: 999px; cursor: pointer;
+  color: var(--ui-text-secondary); background: transparent; border: 1px solid var(--ui-stroke-secondary); }
+.ae-fin-opt:hover:not(:disabled) { color: var(--ui-text-primary); background: var(--ui-bg-quaternary); }
+.ae-fin-opt[aria-pressed="true"] { color: var(--ui-text-primary); border-color: var(--ui-accent);
+  background: color-mix(in srgb, var(--ui-accent) 20%, transparent); }
+.ae-fin-opt:disabled { cursor: default; opacity: 0.6; }
+.ae-fin-opt:focus-visible, .ae-fin-range:focus-visible { outline: 2px solid var(--ui-accent); outline-offset: 2px; }
+.ae-fin-row { display: grid; grid-template-columns: 56px minmax(0, 1fr) auto; align-items: center; gap: 8px; }
+.ae-fin-range { width: 100%; accent-color: var(--ui-accent); }
+.ae-fin-val { font-family: var(--font-mono, ui-monospace, monospace); font-size: 0.75rem; color: var(--ui-text-tertiary); min-width: 3.2em; text-align: right; }
 @media (max-width: 720px) { .ae-ed { grid-template-columns: minmax(0, 1fr); } }
 @keyframes ae-breathe { 0%, 100% { opacity: 0.55; } 50% { opacity: 1; } }
 .ae-chip .ae-dot[data-on] { animation: ae-breathe 3.2s ease-in-out infinite; }
@@ -4790,13 +4854,41 @@ import { jsx as jsx6, jsxs as jsxs4 } from "react/jsx-runtime";
 var HEX = /^#[0-9a-f]{6}$/;
 var MAX_STOPS = 5;
 var MIN_STOPS = 2;
+var FINISH_NAMES = {
+  none: "Smooth",
+  dither: "Dither",
+  halftone: "Halftone",
+  ascii: "ASCII",
+  braille: "Braille",
+  grain: "Grain",
+  scanlines: "Scanlines",
+  crt: "CRT",
+  glitch: "Glitch",
+  pixel: "Pixel"
+};
+var PICKER_ORDER = ["none", "dither", "halftone", "ascii", "braille", "pixel", "crt", "scanlines", "glitch", "grain"];
+var SIZED = /* @__PURE__ */ new Set(["dither", "pixel", "halftone", "ascii", "braille", "scanlines", "crt"]);
+var PATTERNS = [["bayer2", "Bayer 2"], ["bayer4", "Bayer 4"], ["bayer8", "Bayer 8"], ["noise", "Blue noise"]];
+var FINISH_BY_STYLE = Object.fromEntries(FINISHES.map((f) => [f.style, f]));
 function startingColours(record) {
   const c = record.theme.colors;
   return { background: c.background, accent: c.primary, foreground: c.foreground, stops: [...record.scene.colors] };
 }
-function defaultLabel(record) {
-  return record.source === "preset" ? `${record.label} (custom)` : record.label;
+function startingFinish(record) {
+  const f = record.scene.finish || {};
+  return { style: f.style || "none", pixel: f.pixel || 2, pattern: f.pattern || "bayer4" };
 }
+var sameFinish = (a, b) => a.style === b.style && a.pixel === b.pixel && a.pattern === b.pattern;
+function finishWord(style) {
+  const name = FINISH_NAMES[style] || style;
+  return name === name.toUpperCase() ? name : name.toLowerCase();
+}
+function autoLabel(record, coloursChanged, finishChanged, style) {
+  if (record.source !== "preset") return record.label;
+  if (finishChanged && !coloursChanged) return `${record.label}, ${finishWord(style)}`;
+  return `${record.label} (custom)`;
+}
+var sentence = (text) => text.charAt(0).toUpperCase() + text.slice(1) + ".";
 function asHex(text) {
   const raw = String(text || "").trim().toLowerCase();
   const hex = raw.startsWith("#") ? raw : `#${raw}`;
@@ -4837,22 +4929,87 @@ function Swatch({ disabled, label, onChange, onRemove, value }) {
     onRemove ? /* @__PURE__ */ jsx6("button", { "aria-label": `Remove ${label.toLowerCase()}`, className: "ae-sw-x", disabled, onClick: onRemove, type: "button", children: /* @__PURE__ */ jsx6(sdk.Codicon, { name: "close" }) }) : null
   ] });
 }
+function FinishPicker({ disabled, finish, onChange, start }) {
+  const pick = (style) => {
+    if (style === finish.style) return;
+    if (style === start.style) onChange(start);
+    else onChange({ style, pixel: (FINISH_BY_STYLE[style] || {}).pixel || 2, pattern: "bayer4" });
+  };
+  return /* @__PURE__ */ jsxs4("fieldset", { className: "ae-ed-group", disabled, children: [
+    /* @__PURE__ */ jsx6("legend", { className: "ae-ed-legend", children: "Finish" }),
+    /* @__PURE__ */ jsx6("div", { "aria-label": "Finish", className: "ae-fin", role: "group", children: PICKER_ORDER.filter((style) => FINISH_BY_STYLE[style]).map((style) => /* @__PURE__ */ jsx6(
+      "button",
+      {
+        "aria-pressed": finish.style === style,
+        className: "ae-fin-opt",
+        disabled,
+        onClick: () => pick(style),
+        title: sentence(FINISH_BY_STYLE[style].description),
+        type: "button",
+        children: FINISH_NAMES[style] || style
+      },
+      style
+    )) }),
+    SIZED.has(finish.style) ? /* @__PURE__ */ jsxs4("label", { className: "ae-fin-row", children: [
+      /* @__PURE__ */ jsx6("span", { className: "ae-sw-label", children: "Size" }),
+      /* @__PURE__ */ jsx6(
+        "input",
+        {
+          "aria-label": "Finish size",
+          className: "ae-fin-range",
+          disabled,
+          max: 24,
+          min: 1,
+          onChange: (event) => onChange({ ...finish, pixel: Number(event.target.value) }),
+          step: 1,
+          type: "range",
+          value: finish.pixel
+        }
+      ),
+      /* @__PURE__ */ jsxs4("span", { className: "ae-fin-val", children: [
+        finish.pixel,
+        "px"
+      ] })
+    ] }) : null,
+    finish.style === "dither" ? /* @__PURE__ */ jsxs4("div", { className: "ae-fin-row", children: [
+      /* @__PURE__ */ jsx6("span", { className: "ae-sw-label", children: "Pattern" }),
+      /* @__PURE__ */ jsx6("div", { "aria-label": "Dither pattern", className: "ae-fin", role: "group", children: PATTERNS.map(([id, name]) => /* @__PURE__ */ jsx6(
+        "button",
+        {
+          "aria-pressed": finish.pattern === id,
+          className: "ae-fin-opt",
+          disabled,
+          onClick: () => onChange({ ...finish, pattern: id }),
+          type: "button",
+          children: name
+        },
+        id
+      )) })
+    ] }) : null
+  ] });
+}
 function Editor({ base }) {
   const agent = sdk.useValue($agentHalf);
   const start = useMemo(() => startingColours(base), [base]);
+  const startFinish = useMemo(() => startingFinish(base), [base]);
   const [colours, setColours] = useState2(start);
+  const [finish, setFinish] = useState2(startFinish);
   const [textChosen, setTextChosen] = useState2(false);
-  const [label, setLabel] = useState2(() => defaultLabel(base));
+  const [label, setLabel] = useState2(null);
   const [result, setResult] = useState2(null);
   const [status, setStatus] = useState2("checking");
   const [error, setError] = useState2("");
   const ticket = useRef2(0);
+  const coloursChanged = textChosen || JSON.stringify(colours) !== JSON.stringify(start);
+  const finishChanged = !sameFinish(finish, startFinish);
+  const name = label ?? autoLabel(base, coloursChanged, finishChanged, finish.style);
   const params = useMemo(() => {
     const out = { base: base.slug, background: colours.background, accent: colours.accent, scene_colors: colours.stops };
-    if (label.trim()) out.label = label.trim();
+    if (name.trim()) out.label = name.trim();
     if (textChosen) out.foreground = colours.foreground;
+    if (finishChanged) out.finish = { ...finish };
     return out;
-  }, [base, colours, label, textChosen]);
+  }, [base, colours, name, textChosen, finish, finishChanged]);
   const key = JSON.stringify(params);
   const readOnly = status === "unavailable" || agent === false;
   useEffect2(() => {
@@ -4885,16 +5042,25 @@ function Editor({ base }) {
     const known = result && result.record || base;
     const colors = { ...known.theme.colors, background: colours.background, primary: colours.accent };
     if (textChosen) colors.foreground = colours.foreground;
-    return { ...base, theme: { ...base.theme, colors }, scene: { ...base.scene, glass: known.scene.glass, colors: colours.stops } };
-  }, [fresh, result, base, colours, textChosen]);
-  const set = (patch) => setColours((current) => ({ ...current, ...patch }));
+    const levels = finish.style === startFinish.style ? (base.scene.finish || {}).levels || 0 : 0;
+    const sceneFinish = finishChanged ? { ...base.scene.finish || {}, ...finish, levels } : base.scene.finish;
+    return {
+      ...base,
+      theme: { ...base.theme, colors },
+      scene: { ...base.scene, glass: known.scene.glass, colors: colours.stops, finish: sceneFinish }
+    };
+  }, [fresh, result, base, colours, textChosen, finish, finishChanged, startFinish]);
+  const set = (patch) => {
+    setColours((current) => ({ ...current, ...patch }));
+  };
   const setStop = (index, hex) => set({ stops: colours.stops.map((stop, i) => i === index ? hex : stop) });
   const removeStop = (index) => set({ stops: colours.stops.filter((_, i) => i !== index) });
   const addStop = () => set({ stops: [...colours.stops, colours.stops[colours.stops.length - 1]] });
   const reset = () => {
     setColours(start);
+    setFinish(startFinish);
     setTextChosen(false);
-    setLabel(defaultLabel(base));
+    setLabel(null);
   };
   const save = async () => {
     setStatus("saving");
@@ -4910,27 +5076,28 @@ function Editor({ base }) {
     }
   };
   const notes = fresh && result.notes || [];
-  const changed = key !== JSON.stringify({ base: base.slug, background: start.background, accent: start.accent, scene_colors: start.stops, label: defaultLabel(base) });
+  const changed = coloursChanged || finishChanged || label !== null;
   const updating = Boolean(fresh && result.replaces);
-  const banner = readOnly ? "Saving colours needs the Agent half of Aether on this profile (Capabilities, Plugins, Aether). Turn it on to edit and save." : null;
+  const banner = readOnly ? "Saving needs the Agent half of Aether on this profile (Capabilities, Plugins, Aether). Turn it on to edit and save." : null;
   return /* @__PURE__ */ jsxs4(sdk.DialogContent, { banner, bannerTone: "warn", fitContent: true, children: [
     /* @__PURE__ */ jsx6(Styles, {}),
     /* @__PURE__ */ jsxs4(sdk.DialogHeader, { children: [
       /* @__PURE__ */ jsxs4(sdk.DialogTitle, { children: [
-        "Colours: ",
+        "Customise: ",
         base.label
       ] }),
-      /* @__PURE__ */ jsx6(sdk.DialogDescription, { children: "Change any colour. Aether keeps text readable over the moving scene and tells you what it had to move." })
+      /* @__PURE__ */ jsx6(sdk.DialogDescription, { children: "Change any colour or the finish. Aether keeps text readable over the moving scene and tells you what it had to move." })
     ] }),
     /* @__PURE__ */ jsxs4("div", { className: "ae-ed", children: [
       /* @__PURE__ */ jsxs4("div", { className: "ae-ed-side", children: [
         /* @__PURE__ */ jsx6(ScenePreview, { animate: !readOnly, record: draft }),
+        /* @__PURE__ */ jsx6(FinishPicker, { disabled: readOnly, finish, onChange: setFinish, start: startFinish }),
         /* @__PURE__ */ jsx6("div", { "aria-live": "polite", className: "ae-ed-notes", children: status === "error" ? /* @__PURE__ */ jsx6("div", { className: "ae-ed-note", "data-tone": "error", role: "alert", children: error }) : notes.length ? notes.map((note) => /* @__PURE__ */ jsx6("div", { className: "ae-ed-note", children: note }, note)) : status === "ready" ? /* @__PURE__ */ jsx6("div", { className: "ae-ed-note", "data-tone": "ok", children: "Readable as it is: nothing had to move." }) : status === "checking" && !readOnly ? /* @__PURE__ */ jsx6("div", { className: "ae-ed-note", "data-tone": "quiet", children: "Checking readability..." }) : null })
       ] }),
       /* @__PURE__ */ jsxs4("div", { className: "ae-ed-fields", children: [
         /* @__PURE__ */ jsxs4("label", { className: "ae-ed-name", children: [
           /* @__PURE__ */ jsx6("span", { className: "ae-ed-legend", children: "Name" }),
-          /* @__PURE__ */ jsx6(sdk.Input, { disabled: readOnly, maxLength: 40, onChange: (event) => setLabel(event.target.value), value: label })
+          /* @__PURE__ */ jsx6(sdk.Input, { disabled: readOnly, maxLength: 40, onChange: (event) => setLabel(event.target.value), value: name })
         ] }),
         /* @__PURE__ */ jsxs4("fieldset", { className: "ae-ed-group", disabled: readOnly, children: [
           /* @__PURE__ */ jsx6("legend", { className: "ae-ed-legend", children: "Theme" }),
