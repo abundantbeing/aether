@@ -72,7 +72,7 @@ function ThemeCard({ record, active, onDelete }) {
         </div>
       </button>
       <div className="ae-card-actions">
-        <button aria-label={`Change the colours of ${record.label}`} className="ae-act" onClick={() => openEditor(record.slug)} title="Colours" type="button">
+        <button aria-label={`Customise ${record.label}`} className="ae-act" onClick={() => openEditor(record.slug)} title="Customise colours and finish" type="button">
           <sdk.Codicon name="symbol-color" />
         </button>
         {onDelete ? (

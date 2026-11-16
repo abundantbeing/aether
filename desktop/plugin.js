@@ -4840,7 +4840,7 @@ function StatusChip() {
       /* @__PURE__ */ jsx5(MotionControl, { compact: true }),
       /* @__PURE__ */ jsx5(StrengthControl, {}),
       /* @__PURE__ */ jsxs3("div", { style: { display: "flex", gap: 6 }, children: [
-        /* @__PURE__ */ jsx5(sdk.Button, { onClick: () => openEditor(active.slug), size: "sm", variant: "secondary", children: "Colours" }),
+        /* @__PURE__ */ jsx5(sdk.Button, { onClick: () => openEditor(active.slug), size: "sm", variant: "secondary", children: "Customise" }),
         /* @__PURE__ */ jsx5(sdk.Button, { onClick: () => sdk.host.navigate("/aether"), size: "sm", variant: "secondary", children: "Gallery" }),
         /* @__PURE__ */ jsx5(sdk.Button, { onClick: () => turnOff(), size: "sm", variant: "ghost", children: "Off" })
       ] })
@@ -5376,7 +5376,7 @@ function ThemeCard({ record, active, onDelete }) {
           }
         ),
         /* @__PURE__ */ jsxs5("div", { className: "ae-card-actions", children: [
-          /* @__PURE__ */ jsx7("button", { "aria-label": `Change the colours of ${record.label}`, className: "ae-act", onClick: () => openEditor(record.slug), title: "Colours", type: "button", children: /* @__PURE__ */ jsx7(sdk.Codicon, { name: "symbol-color" }) }),
+          /* @__PURE__ */ jsx7("button", { "aria-label": `Customise ${record.label}`, className: "ae-act", onClick: () => openEditor(record.slug), title: "Customise colours and finish", type: "button", children: /* @__PURE__ */ jsx7(sdk.Codicon, { name: "symbol-color" }) }),
           onDelete ? /* @__PURE__ */ jsx7("button", { "aria-label": `Delete ${record.label}`, className: "ae-act", onClick: () => onDelete(record), title: "Delete", type: "button", children: /* @__PURE__ */ jsx7(sdk.Codicon, { name: "close" }) }) : null
         ] })
       ]

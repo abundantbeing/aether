@@ -28,7 +28,7 @@ export function StatusChip() {
           <StrengthControl />
           <div style={{ display: 'flex', gap: 6 }}>
             <sdk.Button onClick={() => openEditor(active.slug)} size="sm" variant="secondary">
-              Colours
+              Customise
             </sdk.Button>
             <sdk.Button onClick={() => sdk.host.navigate('/aether')} size="sm" variant="secondary">
               Gallery
