@@ -79,6 +79,18 @@ export const CSS = `
 .ae-sw-x { grid-column: 4; width: 22px; height: 22px; border: 0; border-radius: 6px; cursor: pointer; display: inline-flex;
   align-items: center; justify-content: center; background: transparent; color: var(--ui-text-tertiary); }
 .ae-sw-x:hover { color: var(--ui-text-primary); background: var(--ui-bg-quaternary); }
+.ae-ed-roll { align-self: flex-start; }
+.ae-fin { display: flex; flex-wrap: wrap; gap: 4px; }
+.ae-fin-opt { font: inherit; font-size: 0.75rem; line-height: 1; padding: 6px 9px; border-radius: 999px; cursor: pointer;
+  color: var(--ui-text-secondary); background: transparent; border: 1px solid var(--ui-stroke-secondary); }
+.ae-fin-opt:hover:not(:disabled) { color: var(--ui-text-primary); background: var(--ui-bg-quaternary); }
+.ae-fin-opt[aria-pressed="true"] { color: var(--ui-text-primary); border-color: var(--ui-accent);
+  background: color-mix(in srgb, var(--ui-accent) 20%, transparent); }
+.ae-fin-opt:disabled { cursor: default; opacity: 0.6; }
+.ae-fin-opt:focus-visible, .ae-fin-range:focus-visible { outline: 2px solid var(--ui-accent); outline-offset: 2px; }
+.ae-fin-row { display: grid; grid-template-columns: 56px minmax(0, 1fr) auto; align-items: center; gap: 8px; }
+.ae-fin-range { width: 100%; accent-color: var(--ui-accent); }
+.ae-fin-val { font-family: var(--font-mono, ui-monospace, monospace); font-size: 0.75rem; color: var(--ui-text-tertiary); min-width: 3.2em; text-align: right; }
 @media (max-width: 720px) { .ae-ed { grid-template-columns: minmax(0, 1fr); } }
 @keyframes ae-breathe { 0%, 100% { opacity: 0.55; } 50% { opacity: 1; } }
 .ae-chip .ae-dot[data-on] { animation: ae-breathe 3.2s ease-in-out infinite; }
