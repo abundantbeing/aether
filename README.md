@@ -1,12 +1,35 @@
 <p align="center">
-  <img src="docs/catalog-cover.jpg" alt="Aether: living themes for Hermes Desktop" width="1200">
+  <img src="docs/brand/icon.png" width="140" height="140" alt="The Aether mark: the letters AE over a dithered gold black hole in a gold ring">
+</p>
+
+<h1 align="center">
+  <img src="docs/brand/wordmark.png" width="560" alt="AETHER, each letter a window onto the Olympus scene in a different finish: dither, halftone, braille, CRT, ASCII and pixel">
+</h1>
+
+<p align="center">
+  <b>Living themes for Hermes Desktop.</b><br>
+  Describe any world and Hermes paints it behind your chats: a full palette and a moving scene, with Undo.<br>
+  Eighteen scenes, ten finishes, a colour editor, Randomize, and motion that reacts to your pointer.
+</p>
+
+<p align="center">
+  <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-111?style=flat" alt="MIT license"></a>
+  <a href="#install"><img src="https://img.shields.io/badge/Hermes_Desktop-plugin-FFCD42?style=flat" alt="A Hermes Desktop plugin"></a>
+  <a href="#how-it-works"><img src="https://img.shields.io/badge/Python-agent_half-3776AB?style=flat&logo=python&logoColor=white" alt="Python agent half"></a>
+  <a href="#how-it-works"><img src="https://img.shields.io/badge/JavaScript-desktop_half-F7DF1E?style=flat&logo=javascript&logoColor=111" alt="JavaScript desktop half"></a>
+  <a href="#the-scenes"><img src="https://img.shields.io/badge/WebGL-24_scene_engines-0000F2?style=flat" alt="24 WebGL scene engines"></a>
+  <a href="https://github.com/abundantbeing"><img src="https://img.shields.io/badge/by-abundantbeing-181717?style=flat&logo=github&logoColor=white" alt="by abundantbeing on GitHub"></a>
+</p>
+
+<p align="center">
+  <img src="docs/catalog-cover.jpg" alt="Aether: a marble Hermes inside a wheel of Aether scenes, each in its own finish" width="1200">
 </p>
 
 **Living themes for Hermes Desktop.** Tell Hermes the look you want ("a slow dithered sunset over the sea", "a black hole, but gold", "my terminal, amber and raining") and it paints a full palette plus an animated scene behind your chats. Or pick one of eighteen hand-tuned scenes: auroras over still lakes, dawn over the edge of the world, a neon city in the rain, a temple above the clouds in Nous blue and gold.
 
 ![Asking Hermes for a dithered sunset: the theme, the scene and a preview card with Undo](docs/screenshots/hero-agent-theme.png)
 
-Screenshots show the actual plugin in the Hermes Webapp (the Desktop renderer in a browser), driven through a real Hermes gateway.
+Screenshots show the actual plugin in Hermes Desktop on Windows, with a real model answering.
 
 ## What you get
 
@@ -45,6 +68,10 @@ Screenshots show the actual plugin in the Hermes Webapp (the Desktop renderer in
 | Caduceus Gold | Sparks rising in the gold-to-bronze of the Hermes banner |
 | Folio | Mountains in one-bit ink on paper, like a page from a field journal |
 | Pocket | A moonlit sea in four shades of handheld green |
+
+### It moves when you do
+
+![Event Horizon drawn into the pointer's gravity well in Hermes Desktop](docs/screenshots/pointer-well.png)
 
 ### The gallery
 
@@ -93,7 +120,9 @@ Every card in the gallery has a **Customise** button (so does the status chip, f
 
 As you change anything, Aether checks readability exactly as it does for Hermes's themes and says in plain words what it had to move, for example an accent lightened so it stays visible or the glass thickened for a busier finish. **Save and apply** keeps the result for this profile: a preset becomes "Selene (custom)" next to the original (or "Talaria, halftone" when only the finish changed), and a theme of your own is updated in place. You can also just ask: "Selene, but gold" or "Talaria, but halftone" starts from that theme and changes only what you name. Saving needs the Agent half; without it the editor is read-only.
 
-![Talaria with randomized analogous reds in the ASCII finish, in the editor](docs/screenshots/customise.png)
+![Olympus in the editor, recoloured in Tyrian purple; Aether names what it moved to keep text readable](docs/screenshots/customise.png)
+
+![The custom Olympus saved and applied behind a chat](docs/screenshots/customise-saved.png)
 
 ## How it works
 
@@ -131,7 +160,7 @@ Every scene is a fixed shader that ships with the plugin; the agent only chooses
 - Needs Hermes 0.23.1 or newer (session events and plugin RPC). The Desktop half feature-detects newer SDK pieces.
 - Scenes need WebGL. Without it, a theme falls back to a still gradient of its colours.
 - A plugin theme registers when the Desktop half loads, so the very first frame of a cold start paints your previous palette for a moment.
-- Tested in the Hermes Webapp (the Desktop renderer) on Linux with software WebGL. Native macOS and Windows windows use the same renderer and SDK but have not been runtime-verified yet.
+- Runtime-verified in native Hermes Desktop on Windows 11 (GPU WebGL) and in the Hermes Webapp on Linux (software WebGL). macOS uses the same renderer and SDK but has not been runtime-verified yet.
 - At Vivid strength, text that crosses the brightest part of a scene can fall below the readability floor. Balanced always holds it.
 - A main-branch checkout of Hermes reports the last tag on its own branch (0.22.x), so the loader skips plugins that require 0.23.x there. Install on a release, or lower `requires_hermes` in your local copy.
 
@@ -162,8 +191,4 @@ node tests/render_frames.mjs Selene out --pointer sweep --interaction ripples --
 ffmpeg -framerate 60 -i out/event-horizon/%05d.png -c:v libx264 -crf 12 -preset slow -pix_fmt yuv420p event-horizon.mp4
 ```
 
-## Credits
-
-OKLab and OKLCH by Bjorn Ottosson. The cyanotype, gold and amber palettes and Nous blue follow the Hermes Agent and Nous Research visual identity; this is an unofficial community plugin and Hermes and Nous Research belong to their owners.
-
-MIT licence, see [LICENSE](LICENSE).
+MIT licence, see [LICENSE](LICENSE). Aether is an unofficial community plugin.
