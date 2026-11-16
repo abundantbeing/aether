@@ -257,8 +257,9 @@ class Runtime:
 
     @staticmethod
     def _custom_args(params: Any) -> Dict[str, Any]:
-        """Colour-editor params ``{base, label?, background?, accent?, foreground?, scene_colors?}`` as
-        an ``aether_theme`` call layered over the base."""
+        """Editor params ``{base, label?, background?, accent?, foreground?, scene_colors?, finish?}`` as
+        an ``aether_theme`` call layered over the base. ``finish`` is a style name or
+        ``{style, pixel?, pattern?}``; a new style starts from its own defaults, as it does in chat."""
         if not isinstance(params, dict) or not params.get("base"):
             raise SpecError("base is required: the preset or saved theme whose colours are being changed")
         args: Dict[str, Any] = {"base": str(params["base"])}
@@ -269,6 +270,8 @@ class Runtime:
                 args[key] = params[key]
         if params.get("scene_colors") is not None:
             args["scene"] = {"colors": params["scene_colors"]}
+        if params.get("finish") not in (None, ""):
+            args["finish"] = params["finish"]
         return args
 
     def rpc_preview(self, params: Any = None, **kwargs: Any) -> Dict[str, Any]:
