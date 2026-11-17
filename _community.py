@@ -58,11 +58,12 @@ def _manifest(folder: Path) -> Dict[str, Any]:
     text = _read_text(folder / "plugin.yaml", 256 * 1024) or _read_text(folder / "plugin.yml", 256 * 1024)
     if not text:
         return {}
-    try:
-        import yaml
+    # Hermes's own reader (public plugin API); PyYAML is not guaranteed in a Hermes install.
+    from hermes_yaml import safe_load
 
-        data = yaml.safe_load(text)
-    except Exception:
+    try:
+        data = safe_load(text)
+    except Exception:  # another creator's malformed manifest: skip that plugin, not the gallery
         return {}
     return data if isinstance(data, dict) else {}
 

@@ -119,3 +119,10 @@ def test_a_name_both_plugins_mention_goes_to_the_one_named_after_it(community, h
 def test_bad_input_is_ignored(community, home):
     assert community.attribute(None) == {"themes": {}, "plugins": {}}
     assert community.attribute(["x" * 500]) == {"themes": {}, "plugins": {}}
+
+
+def test_manifests_are_read_without_pyyaml(community, home, monkeypatch):
+    # A bare Hermes install has no PyYAML; credits must still come from the manifest.
+    monkeypatch.setitem(sys.modules, "yaml", None)
+    _plugin(home, "hermes-borealis", manifest="name: hermes-borealis\nauthor: Adolanium\n", script=BOREALIS_JS)
+    assert community._manifest(home / "plugins" / "hermes-borealis")["author"] == "Adolanium"
