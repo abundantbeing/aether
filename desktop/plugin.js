@@ -5088,6 +5088,8 @@ var CSS2 = `
 .ae-select { font: inherit; font-size: 0.8125rem; padding: 6px 10px; border-radius: 8px; cursor: pointer; min-width: 9.5rem;
   color: var(--ui-text-primary); background: var(--ui-bg-secondary, transparent); border: 1px solid var(--ui-stroke-secondary); }
 .ae-select:hover { background: var(--ui-bg-quaternary); }
+.ae-select option { color: var(--ui-text-primary); background: var(--ui-bg-elevated, var(--ui-bg-chrome, Canvas)); }
+.ae-select-trigger { min-width: 9.5rem; }
 .ae-select:focus-visible { outline: 2px solid var(--ui-accent); outline-offset: 2px; }
 .ae-fin-val { font-family: var(--font-mono, ui-monospace, monospace); font-size: 0.75rem; color: var(--ui-text-tertiary); min-width: 3.2em; text-align: right; }
 @media (max-width: 720px) { .ae-ed { grid-template-columns: minmax(0, 1fr); } }
@@ -5170,19 +5172,14 @@ function StrengthControl() {
 function PointerSelect() {
   const settings = sdk.useValue($settings);
   const choice = pointerChoice(settings);
-  return /* @__PURE__ */ jsx4(
-    "select",
-    {
-      "aria-label": "Pointer reaction",
-      className: "ae-select",
-      onChange: (event) => {
-        const id = event.target.value;
-        updateSettings({ pointer: id !== "off", pointerMode: id === "off" ? settings.pointerMode || "auto" : id });
-      },
-      value: choice,
-      children: POINTER_CHOICES.map((c) => /* @__PURE__ */ jsx4("option", { value: c.id, children: c.label }, c.id))
-    }
-  );
+  const pick = (id) => updateSettings({ pointer: id !== "off", pointerMode: id === "off" ? settings.pointerMode || "auto" : id });
+  if (sdk.Select && sdk.SelectTrigger && sdk.SelectContent && sdk.SelectItem && sdk.SelectValue) {
+    return /* @__PURE__ */ jsxs2(sdk.Select, { onValueChange: pick, value: choice, children: [
+      /* @__PURE__ */ jsx4(sdk.SelectTrigger, { "aria-label": "Pointer reaction", className: "ae-select-trigger", children: /* @__PURE__ */ jsx4(sdk.SelectValue, {}) }),
+      /* @__PURE__ */ jsx4(sdk.SelectContent, { children: POINTER_CHOICES.map((c) => /* @__PURE__ */ jsx4(sdk.SelectItem, { value: c.id, children: c.label }, c.id)) })
+    ] });
+  }
+  return /* @__PURE__ */ jsx4("select", { "aria-label": "Pointer reaction", className: "ae-select", onChange: (event) => pick(event.target.value), value: choice, children: POINTER_CHOICES.map((c) => /* @__PURE__ */ jsx4("option", { value: c.id, children: c.label }, c.id)) });
 }
 function SettingsPage() {
   const settings = sdk.useValue($settings);

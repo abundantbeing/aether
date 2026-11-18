@@ -46,19 +46,31 @@ export function StrengthControl() {
   )
 }
 
+// The app's own Select draws its list in the theme's colours. A native <select> list is drawn by the
+// system, light even under a dark theme, so its options took the theme's light text on a white list
+// and could not be read; it is kept only for a Desktop without the SDK Select, with its colours set.
 function PointerSelect() {
   const settings = sdk.useValue($settings)
   const choice = pointerChoice(settings)
+  const pick = id => updateSettings({ pointer: id !== 'off', pointerMode: id === 'off' ? settings.pointerMode || 'auto' : id })
+  if (sdk.Select && sdk.SelectTrigger && sdk.SelectContent && sdk.SelectItem && sdk.SelectValue) {
+    return (
+      <sdk.Select onValueChange={pick} value={choice}>
+        <sdk.SelectTrigger aria-label="Pointer reaction" className="ae-select-trigger">
+          <sdk.SelectValue />
+        </sdk.SelectTrigger>
+        <sdk.SelectContent>
+          {POINTER_CHOICES.map(c => (
+            <sdk.SelectItem key={c.id} value={c.id}>
+              {c.label}
+            </sdk.SelectItem>
+          ))}
+        </sdk.SelectContent>
+      </sdk.Select>
+    )
+  }
   return (
-    <select
-      aria-label="Pointer reaction"
-      className="ae-select"
-      onChange={event => {
-        const id = event.target.value
-        updateSettings({ pointer: id !== 'off', pointerMode: id === 'off' ? settings.pointerMode || 'auto' : id })
-      }}
-      value={choice}
-    >
+    <select aria-label="Pointer reaction" className="ae-select" onChange={event => pick(event.target.value)} value={choice}>
       {POINTER_CHOICES.map(c => <option key={c.id} value={c.id}>{c.label}</option>)}
     </select>
   )

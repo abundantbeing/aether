@@ -121,6 +121,8 @@ export const CSS = `
 .ae-select { font: inherit; font-size: 0.8125rem; padding: 6px 10px; border-radius: 8px; cursor: pointer; min-width: 9.5rem;
   color: var(--ui-text-primary); background: var(--ui-bg-secondary, transparent); border: 1px solid var(--ui-stroke-secondary); }
 .ae-select:hover { background: var(--ui-bg-quaternary); }
+.ae-select option { color: var(--ui-text-primary); background: var(--ui-bg-elevated, var(--ui-bg-chrome, Canvas)); }
+.ae-select-trigger { min-width: 9.5rem; }
 .ae-select:focus-visible { outline: 2px solid var(--ui-accent); outline-offset: 2px; }
 .ae-fin-val { font-family: var(--font-mono, ui-monospace, monospace); font-size: 0.75rem; color: var(--ui-text-tertiary); min-width: 3.2em; text-align: right; }
 @media (max-width: 720px) { .ae-ed { grid-template-columns: minmax(0, 1fr); } }
