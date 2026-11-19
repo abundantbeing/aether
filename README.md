@@ -88,8 +88,10 @@ Already have a theme plugin from another community creator, such as Borealis? Ae
 
 You need Hermes 0.23.1 or newer with Hermes Desktop (or the Webapp).
 
+Aether is in the [Hermes plugin marketplace](https://hermes-agent.nousresearch.com/marketplace/aether).
+
 ```bash
-hermes plugins install abundantbeing/aether --enable
+hermes plugins install aether
 ```
 
 Then, in Hermes Desktop:
